@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Tucontador",
+    "slug": "tucontador",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0E1510"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#0E1510",
+      "barStyle": "light-content"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0E1510"
+      },
+      "package": "com.tucontador.app",
+      "versionCode": 1
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tucontador.app"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-splash-screen"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "tucontador"
+      }
+    }
+  }
+}
