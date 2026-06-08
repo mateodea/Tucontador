@@ -1,8 +1,8 @@
-// ─── TUCONTADOR — Pantalla de inicio ────────────────────────────────────────
-import React from 'react';
+// ─── TUCONTADOR — Pantalla de inicio ───────────────────────────────────────
+import React, { useRef, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar,
+  View, Text, FlatList, TouchableOpacity,
+  StyleSheet, StatusBar, Animated, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,262 +11,107 @@ import { colors } from '../theme/colors';
 import { fonts, fontSize, spacing, radius } from '../theme/typography';
 import IconoJuego from '../components/common/IconoJuego';
 
-export default function InicioScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
+const { width: W } = Dimensions.get('window');
+const CARD = (W - spacing.lg * 2 - spacing.sm) / 2;
+
+function GameCard({ juego, onPress, index }) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const fade  = useRef(new Animated.Value(0)).current;
+  const press = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue:1, tension:60, friction:8, delay:index*55, useNativeDriver:true }),
+      Animated.timing(fade,  { toValue:1, duration:280, delay:index*55, useNativeDriver:true }),
+    ]).start();
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.fondoProfundo} />
-      <LinearGradient
-        colors={['#243d28', '#1C2B1F', '#101a12']}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Marco dorado */}
-      <View style={styles.marcoOuter} pointerEvents="none" />
-      <View style={styles.marcoInner} pointerEvents="none" />
-
-      {/* TÍTULO FILETEADO */}
-      <View style={[styles.headerWrap, { paddingTop: insets.top + 20 }]}>
-
-        {/* Volutas decorativas — izq y der */}
-        <View style={styles.volutaRow}>
-          <View style={styles.lineaDorada} />
-          <View style={styles.floroncito} />
-          <View style={styles.lineaDorada} />
-        </View>
-
-        {/* Nombre de la app */}
-        <View style={styles.tituloRow}>
-          <Text style={styles.tituloNormal}>Tu</Text>
-          <Text style={styles.tituloAccento}>contador</Text>
-        </View>
-
-        <View style={styles.volutaRow}>
-          <View style={styles.lineaDorada} />
-          <Text style={styles.volutaLabel}>Contador de cartas</Text>
-          <View style={styles.lineaDorada} />
-        </View>
-      </View>
-
-      {/* LISTA DE JUEGOS */}
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 70 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {JUEGOS_LISTA.map((juego) => (
-          <TouchableOpacity
-            key={juego.id}
-            style={[styles.juegoRow, { borderLeftColor: juego.colorAcento }]}
-            onPress={() => navigation.navigate('Config', { juego })}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.juegoIconWrap, {
-              backgroundColor: juego.colorFondo,
-              borderColor:     juego.colorBorde,
-            }]}>
-              <IconoJuego juegoId={juego.id} size={22} />
-            </View>
-            <View style={styles.juegoTexto}>
-              <View style={styles.juegoNombreRow}>
-                <Text style={styles.juegoNombre}>{juego.nombre}</Text>
-                {juego.subtitulo && (
-                  <View style={[styles.subtituloChip, { borderColor: juego.colorBorde }]}>
-                    <Text style={[styles.subtituloText, { color: juego.colorAcento }]}>
-                      {juego.subtitulo}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.juegoDesc}>{juego.descripcion}</Text>
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* BOTÓN AJUSTES */}
+    <Animated.View style={{ opacity:fade, transform:[{ scale: Animated.multiply(scale, press) }] }}>
       <TouchableOpacity
-        style={[styles.ajustesBtn, { bottom: insets.bottom + 16 }]}
-        onPress={() => navigation.navigate('Ajustes')}
-        activeOpacity={0.75}
+        onPress={onPress}
+        onPressIn={()=> Animated.spring(press,{toValue:0.94,useNativeDriver:true}).start()}
+        onPressOut={()=> Animated.spring(press,{toValue:1,useNativeDriver:true}).start()}
+        activeOpacity={1}
+        style={[styles.card, { borderColor:juego.colorBorde, backgroundColor:juego.colorFondo }]}
       >
-        <Text style={styles.ajustesIcon}>⚙</Text>
-        <Text style={styles.ajustesText}>Ajustes</Text>
+        <LinearGradient colors={['rgba(255,255,255,0.05)','transparent']} style={StyleSheet.absoluteFill}/>
+        <View style={[styles.accent, { backgroundColor:juego.colorAccento }]}/>
+        <View style={styles.iconWrap}>
+          <IconoJuego juego={juego} size={38}/>
+        </View>
+        <Text style={styles.cardName} numberOfLines={2}>{juego.nombre}</Text>
+        {juego.subtitulo
+          ? <Text style={[styles.cardSub, { color:juego.colorAccento }]} numberOfLines={1}>{juego.subtitulo}</Text>
+          : <Text style={styles.cardPlayers}>{juego.equipos === 2 ? '2 equipos' : juego.equipos+' jugadores'}</Text>
+        }
       </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function InicioScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const hdr = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(hdr, { toValue:1, duration:450, useNativeDriver:true }).start();
+  }, []);
+
+  return (
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent"/>
+      <LinearGradient colors={[colors.fondoAzul,'#0D1520',colors.fondoNegro]} style={StyleSheet.absoluteFill}/>
+      <View style={styles.glow1}/>
+      <View style={styles.glow2}/>
+
+      <Animated.View style={[
+        styles.header,
+        { paddingTop: insets.top + spacing.md },
+        { opacity:hdr, transform:[{ translateY: hdr.interpolate({ inputRange:[0,1], outputRange:[-18,0] }) }] },
+      ]}>
+        <View>
+          <Text style={styles.title}>TuContador</Text>
+          <Text style={styles.sub}>Elegí tu juego</Text>
+        </View>
+        <TouchableOpacity style={styles.settBtn} onPress={()=> navigation.navigate('Ajustes')}>
+          <Text style={styles.settIcon}>⚙</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      <View style={styles.divider}/>
+
+      <FlatList
+        data={JUEGOS_LISTA}
+        keyExtractor={j => j.id}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + spacing.xl }]}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item, index }) => (
+          <GameCard juego={item} index={index} onPress={()=> navigation.navigate('Config', { juego:item })}/>
+        )}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  marcoOuter: {
-    position:    'absolute', top: 14, left: 14, right: 14, bottom: 14,
-    borderWidth: 1, borderColor: colors.bordeDorado, borderRadius: 30,
-    zIndex: 0,
-  },
-  marcoInner: {
-    position:    'absolute', top: 18, left: 18, right: 18, bottom: 18,
-    borderWidth: 0.8, borderColor: 'rgba(184,150,46,0.07)', borderRadius: 26,
-    zIndex: 0,
-  },
-
-  // ── Header ──
-  headerWrap: {
-    alignItems:    'center',
-    paddingBottom: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(184,150,46,0.12)',
-    zIndex: 2,
-  },
-  volutaRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            spacing.sm,
-    marginVertical: 4,
-    width:          '100%',
-  },
-  lineaDorada: {
-    flex:            1,
-    height:          1,
-    backgroundColor: 'rgba(184,150,46,0.25)',
-  },
-  floroncito: {
-    width:           6,
-    height:          6,
-    borderRadius:    3,
-    backgroundColor: colors.doradoAntiguo,
-  },
-  volutaLabel: {
-    fontFamily:    fonts.sansMedium,
-    fontSize:      9,
-    color:         'rgba(184,150,46,0.5)',
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-  },
-
-  tituloRow: {
-    flexDirection: 'row',
-    alignItems:    'baseline',
-    marginVertical: 4,
-  },
-  tituloNormal: {
-    fontFamily: fonts.serif,
-    fontSize:   38,
-    color:      colors.marfil,
-    lineHeight: 44,
-  },
-  tituloAccento: {
-    fontFamily: fonts.serif,
-    fontSize:   38,
-    color:      colors.oro,
-    fontStyle:  'italic',
-    lineHeight: 44,
-  },
-
-  // ── Lista juegos ──
-  scroll: {
-    flex:   1,
-    zIndex: 2,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop:        spacing.md,
-    gap:               spacing.sm,
-  },
-
-  juegoRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            spacing.md,
-    paddingVertical: 11,
-    paddingHorizontal: 13,
-    borderRadius:   radius.md,
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    borderWidth:    1,
-    borderColor:    colors.bordeDorado,
-    borderLeftWidth: 3,
-  },
-
-  juegoIconWrap: {
-    width:         38,
-    height:        38,
-    borderRadius:  radius.sm,
-    borderWidth:   1,
-    alignItems:    'center',
-    justifyContent:'center',
-    flexShrink:    0,
-  },
-
-  juegoTexto: { flex: 1 },
-
-  juegoNombreRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           6,
-  },
-  juegoNombre: {
-    fontFamily: fonts.serif,
-    fontSize:   fontSize.body + 2,
-    color:      colors.marfil,
-    lineHeight: 20,
-  },
-
-  subtituloChip: {
-    borderWidth:   1,
-    borderRadius:  radius.full,
-    paddingHorizontal: 6,
-    paddingVertical:   1,
-  },
-  subtituloText: {
-    fontFamily:    fonts.sansBold,
-    fontSize:      fontSize.labelTiny,
-    letterSpacing: 0.5,
-  },
-
-  juegoDesc: {
-    fontFamily: fonts.sans,
-    fontSize:   fontSize.labelTiny + 1,
-    color:      colors.marfilSuave,
-    marginTop:  2,
-  },
-
-  chevron: {
-    fontSize: 18,
-    color:    'rgba(184,150,46,0.4)',
-  },
-
-  // ── Ajustes ──
-  ajustesBtn: {
-    position:       'absolute',
-    alignSelf:      'center',
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            6,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderWidth:    1,
-    borderColor:    colors.bordeDorado,
-    borderRadius:   radius.full,
-    paddingVertical:   7,
-    paddingHorizontal: 18,
-    zIndex: 10,
-  },
-  ajustesIcon: {
-    fontSize: 13,
-    color:    'rgba(184,150,46,0.65)',
-  },
-  ajustesText: {
-    fontFamily:    fonts.sansSemibold,
-    fontSize:      fontSize.label,
-    color:         'rgba(242,237,215,0.4)',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
+  root:     { flex:1, backgroundColor:colors.fondoAzul },
+  glow1:    { position:'absolute', width:260, height:260, borderRadius:130, backgroundColor:colors.oroTenue, top:-50, right:-70 },
+  glow2:    { position:'absolute', width:180, height:180, borderRadius:90,  backgroundColor:'rgba(42,80,128,0.07)', bottom:90, left:-50 },
+  header:   { flexDirection:'row', justifyContent:'space-between', alignItems:'flex-end', paddingHorizontal:spacing.lg, paddingBottom:spacing.md },
+  title:    { fontFamily:fonts.serif, fontSize:34, color:colors.oro, letterSpacing:0.4 },
+  sub:      { fontFamily:fonts.sans, fontSize:fontSize.labelTiny ?? 11, color:colors.marfilMedio, letterSpacing:1.6, textTransform:'uppercase', marginTop:3 },
+  settBtn:  { width:40, height:40, borderRadius:20, backgroundColor:colors.fondoCard, borderWidth:1, borderColor:colors.bordeDorado, alignItems:'center', justifyContent:'center' },
+  settIcon: { fontSize:17, color:colors.oro },
+  divider:  { height:1, marginHorizontal:spacing.lg, backgroundColor:colors.bordeDorado, marginBottom:spacing.lg },
+  list:     { paddingHorizontal:spacing.lg },
+  row:      { justifyContent:'space-between', marginBottom:spacing.sm },
+  card:     { width:CARD, minHeight:142, borderRadius:radius.xl ?? 20, borderWidth:1, padding:spacing.md, overflow:'hidden', justifyContent:'flex-end' },
+  accent:   { position:'absolute', top:0, left:0, right:0, height:3, borderTopLeftRadius:20, borderTopRightRadius:20 },
+  iconWrap: { marginBottom:spacing.sm, marginTop:spacing.sm },
+  cardName: { fontFamily:fonts.serif, fontSize:fontSize.body ?? 15, color:colors.marfil, lineHeight:20, marginBottom:2 },
+  cardSub:  { fontFamily:fonts.sansMedium, fontSize:10, textTransform:'uppercase', letterSpacing:0.9 },
+  cardPlayers:{ fontFamily:fonts.sans, fontSize:11, color:colors.marfilTenue },
 });

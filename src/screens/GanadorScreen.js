@@ -1,261 +1,145 @@
 // ─── TUCONTADOR — Pantalla de ganador ───────────────────────────────────────
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity,
-  StyleSheet, Animated,
+  View, Text, TouchableOpacity, StyleSheet,
+  Animated, StatusBar, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Fosforos from '../components/fosforos/Fosforos';
 import { colors } from '../theme/colors';
 import { fonts, fontSize, spacing, radius } from '../theme/typography';
 
-export default function GanadorScreen({ route, navigation }) {
-  const { juego, equipos, puntajes, ganador, limite } = route.params;
-  const insets  = useSafeAreaInsets();
-  const escala  = useRef(new Animated.Value(0.7)).current;
-  const opacidad = useRef(new Animated.Value(0)).current;
+const { width: W, height: H } = Dimensions.get('window');
 
-  const equipoGanador = equipos[ganador];
-  const equipoPerdedor = equipos[ganador === 0 ? 1 : 0];
-  const puntajeGanador = puntajes[ganador];
+export default function GanadorScreen({ route, navigation }) {
+  const { juego, equipos, puntajes, ganador, limite, movimientos } = route.params;
+  const insets = useSafeAreaInsets();
+
+  // Animaciones
+  const fade     = useRef(new Animated.Value(0)).current;
+  const scale    = useRef(new Animated.Value(0.6)).current;
+  const slideUp  = useRef(new Animated.Value(40)).current;
+  const crown    = useRef(new Animated.Value(0)).current;
+  const btns     = useRef(new Animated.Value(0)).current;
+
+  const equipoGanador   = equipos[ganador];
+  const equipoPerdedor  = equipos[ganador === 0 ? 1 : 0];
+  const puntajeGanador  = puntajes[ganador];
   const puntajePerdedor = puntajes[ganador === 0 ? 1 : 0];
+  const totalJugadas    = movimientos?.length ?? 0;
 
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    Animated.parallel([
-      Animated.spring(escala, {
-        toValue:         1,
-        tension:         50,
-        friction:        7,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacidad, {
-        toValue:         1,
-        duration:        500,
-        useNativeDriver: true,
-      }),
+    Animated.sequence([
+      Animated.parallel([
+        Animated.spring(scale, { toValue: 1, tension: 55, friction: 7, useNativeDriver: true }),
+        Animated.timing(fade,  { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(slideUp, { toValue: 0, duration: 320, useNativeDriver: true }),
+        Animated.timing(crown,   { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]),
+      Animated.timing(btns, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  const revancha = () => {
-    navigation.replace('Marcador', {
-      ...route.params,
-    });
-  };
+  const revancha = () => navigation.replace('Marcador', { ...route.params });
+  const menu     = () => navigation.popToTop();
 
   return (
-    <View style={styles.container}>
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent"/>
       <LinearGradient
-        colors={['#1a0f00', '#0d1a0d', '#060d07']}
-        locations={[0, 0.5, 1]}
+        colors={['#0A1628', '#0D0A00', '#060D07']}
+        locations={[0, 0.55, 1]}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Resplandor dorado central */}
-      <View style={styles.glow} />
+      {/* Brillo central */}
+      <Animated.View style={[styles.glow, { opacity: fade }]}/>
 
-      {/* Marco */}
-      <View style={styles.marco} />
-
+      {/* Corona / emoji ganador */}
       <Animated.View style={[
-        styles.contenido,
-        { opacity: opacidad, transform: [{ scale: escala }] },
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
+        styles.crownWrap,
+        { paddingTop: insets.top + spacing.xl },
+        { opacity: crown, transform: [{ scale: crown.interpolate({ inputRange:[0,1], outputRange:[0.5,1] }) }] },
       ]}>
-
-        {/* Trofeo SVG simplificado con volutas */}
-        <View style={styles.trofeoWrap}>
-          <Text style={styles.estrella}>★</Text>
-          <View style={styles.trofeoBase} />
-        </View>
-
-        {/* Ganadores */}
-        <Text style={styles.eyebrow}>¡Ganadores!</Text>
-        <Text style={styles.nombreGanador}>{equipoGanador.nombre}</Text>
-
-        {/* Chips de puntaje */}
-        <View style={styles.scoresRow}>
-          <View style={styles.chipGanador}>
-            <Text style={styles.chipGanadorText}>{puntajeGanador} pts</Text>
-          </View>
-          <Text style={styles.vsText}>vs</Text>
-          <View style={styles.chipPerdedor}>
-            <Text style={styles.chipPerdedorText}>{puntajePerdedor} pts</Text>
-          </View>
-        </View>
-
-        {/* Línea dorada */}
-        <View style={styles.lineaDorada} />
-
-        {/* Fósforos del puntaje ganador */}
-        <Text style={styles.fosforosLabel}>Puntaje final</Text>
-        <View style={styles.fosforosWrap}>
-          <Fosforos
-            puntos={puntajeGanador}
-            colorEquipo={ganador === 0 ? 'rojo' : 'azul'}
-            size={32}
-          />
-        </View>
-
-        {/* Botones */}
-        <View style={styles.botones}>
-          <TouchableOpacity
-            style={styles.btnRevancha}
-            onPress={revancha}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#2A6B3A', '#1A4A28']}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            />
-            <Text style={styles.btnRevanchaText}>Revancha</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.btnNueva}
-            onPress={() => navigation.navigate('Config', { juego })}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.btnNuevaText}>Nueva partida</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.btnMenu}
-            onPress={() => navigation.navigate('Inicio')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.btnMenuText}>Volver al menú</Text>
-          </TouchableOpacity>
-        </View>
-
+        <Text style={styles.crown}>👑</Text>
       </Animated.View>
+
+      {/* Tarjeta principal */}
+      <Animated.View style={[styles.card, { opacity: fade, transform: [{ scale }] }]}>
+        <LinearGradient
+          colors={['rgba(184,150,46,0.12)', 'rgba(184,150,46,0.04)']}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.cardBorder}/>
+
+        <Text style={styles.winLabel}>¡GANADOR!</Text>
+        <Text style={styles.winName}>{equipoGanador?.nombre ?? 'Equipo ' + (ganador + 1)}</Text>
+        <Text style={styles.winScore}>{puntajeGanador}</Text>
+        <Text style={styles.winPts}>puntos</Text>
+
+        <View style={styles.divider}/>
+
+        <View style={styles.loserRow}>
+          <Text style={styles.loserName}>{equipoPerdedor?.nombre ?? 'Rival'}</Text>
+          <Text style={styles.loserScore}>{puntajePerdedor} pts</Text>
+        </View>
+
+        {totalJugadas > 0 && (
+          <Text style={styles.stats}>{totalJugadas} jugadas · límite {limite}</Text>
+        )}
+      </Animated.View>
+
+      {/* Botones */}
+      <Animated.View style={[styles.btns, { opacity: btns, transform: [{ translateY: slideUp }] }]}>
+        <TouchableOpacity style={styles.btnPrimary} onPress={revancha} activeOpacity={0.8}>
+          <LinearGradient
+            colors={[colors.oro, colors.doradoAntiguo]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={styles.btnGrad}
+          >
+            <Text style={styles.btnPrimaryText}>Revancha</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.btnSecondary} onPress={menu} activeOpacity={0.7}>
+          <Text style={styles.btnSecondaryText}>Volver al menú</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      {/* Nombre del juego arriba */}
+      <Animated.Text style={[styles.gameName, { opacity: crown, paddingTop: insets.top + 6 }]}>
+        {juego?.nombre}
+      </Animated.Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  glow: {
-    position: 'absolute',
-    top: '28%', alignSelf: 'center',
-    width: 260, height: 260,
-    borderRadius: 130,
-    backgroundColor: 'rgba(184,150,46,0.1)',
-  },
-
-  marco: {
-    position: 'absolute', inset: 14,
-    borderWidth: 1, borderColor: colors.bordeDorado,
-    borderRadius: 30,
-  },
-
-  contenido: {
-    flex: 1, alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    gap: spacing.sm,
-  },
-
-  trofeoWrap: { alignItems: 'center', marginBottom: 4 },
-  estrella: {
-    fontSize: 64,
-    color:    colors.oro,
-    textShadowColor: 'rgba(212,168,67,0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
-  },
-  trofeoBase: {
-    width: 60, height: 4, borderRadius: 2,
-    backgroundColor: 'rgba(184,150,46,0.3)',
-    marginTop: 4,
-  },
-
-  eyebrow: {
-    fontFamily:    fonts.sansBold,
-    fontSize:      fontSize.label,
-    color:         'rgba(184,150,46,0.55)',
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-  },
-
-  nombreGanador: {
-    fontFamily: fonts.serifItalic,
-    fontSize:   fontSize.appTitle,
-    color:      colors.oro,
-    lineHeight: fontSize.appTitle * 1.1,
-    textAlign:  'center',
-  },
-
-  scoresRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            spacing.sm,
-    marginVertical: spacing.xs,
-  },
-  chipGanador: {
-    paddingVertical: 4, paddingHorizontal: 14,
-    borderRadius: radius.full,
-    backgroundColor: 'rgba(184,150,46,0.15)',
-    borderWidth: 1, borderColor: 'rgba(184,150,46,0.35)',
-  },
-  chipGanadorText: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.oro, fontWeight: '700' },
-  chipPerdedor: {
-    paddingVertical: 4, paddingHorizontal: 14,
-    borderRadius: radius.full,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderWidth: 1, borderColor: colors.bordeSuave,
-  },
-  chipPerdedorText: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.marfilTenue },
-  vsText: { fontFamily: fonts.serifItalic, fontSize: fontSize.bodySmall, color: 'rgba(255,255,255,0.2)' },
-
-  lineaDorada: {
-    width: '55%', height: 1,
-    backgroundColor: 'rgba(184,150,46,0.25)',
-    marginVertical: spacing.sm,
-  },
-
-  fosforosLabel: {
-    fontFamily:    fonts.sansBold,
-    fontSize:      fontSize.labelTiny,
-    color:         'rgba(255,255,255,0.2)',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginBottom:  4,
-  },
-  fosforosWrap: {
-    flexDirection:  'row',
-    justifyContent: 'center',
-    marginBottom:   spacing.md,
-    maxWidth:       260,
-  },
-
-  botones: { width: '100%', gap: spacing.sm, marginTop: spacing.sm },
-
-  btnRevancha: {
-    borderRadius: radius.md, paddingVertical: 13,
-    alignItems: 'center', overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(42,107,58,0.5)',
-  },
-  btnRevanchaText: { fontFamily: fonts.serif, fontSize: fontSize.screenTitle, color: colors.marfil, letterSpacing: 0.5 },
-
-  btnNueva: {
-    borderRadius: radius.md, paddingVertical: 11,
-    alignItems: 'center',
-    backgroundColor: 'rgba(184,150,46,0.1)',
-    borderWidth: 1, borderColor: colors.bordeDorado,
-  },
-  btnNuevaText: { fontFamily: fonts.sansSemibold, fontSize: fontSize.body, color: colors.oro },
-
-  btnMenu: {
-    borderRadius: radius.md, paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderWidth: 1, borderColor: colors.bordeSuave,
-  },
-  btnMenuText: { fontFamily: fonts.sansMedium, fontSize: fontSize.body, color: colors.marfilTenue },
+  root:    { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#060D07' },
+  glow:    { position: 'absolute', width: W * 0.9, height: W * 0.9, borderRadius: W * 0.45, backgroundColor: 'rgba(184,150,46,0.08)', top: H * 0.1 },
+  gameName:{ position: 'absolute', top: 0, left: 0, right: 0, textAlign: 'center', fontFamily: fonts.sans, fontSize: 11, color: colors.marfilTenue, letterSpacing: 2, textTransform: 'uppercase' },
+  crownWrap:{ position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
+  crown:   { fontSize: 56 },
+  card:    { width: W - spacing.xl * 2, borderRadius: 24, overflow: 'hidden', alignItems: 'center', paddingVertical: spacing.xl, paddingHorizontal: spacing.lg, marginBottom: spacing.xl },
+  cardBorder:{ position: 'absolute', inset: 0, borderRadius: 24, borderWidth: 1, borderColor: colors.bordeDoradoMedio },
+  winLabel:{ fontFamily: fonts.sansSemibold, fontSize: 11, color: colors.oro, letterSpacing: 3, textTransform: 'uppercase', marginBottom: spacing.sm },
+  winName: { fontFamily: fonts.serif, fontSize: fontSize.gameTitle, color: colors.marfil, textAlign: 'center', marginBottom: 4 },
+  winScore:{ fontFamily: fonts.serif, fontSize: 80, color: colors.oro, lineHeight: 88 },
+  winPts:  { fontFamily: fonts.sans, fontSize: 13, color: colors.marfilMedio, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: spacing.md },
+  divider: { width: '60%', height: 1, backgroundColor: colors.bordeDorado, marginBottom: spacing.md },
+  loserRow:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: spacing.sm },
+  loserName:{ fontFamily: fonts.sansMedium, fontSize: fontSize.body, color: colors.marfilMedio },
+  loserScore:{ fontFamily: fonts.sansSemibold, fontSize: fontSize.body, color: colors.marfilMedio },
+  stats:   { fontFamily: fonts.sans, fontSize: 11, color: colors.marfilTenue, letterSpacing: 0.5 },
+  btns:    { width: W - spacing.xl * 2, gap: spacing.sm },
+  btnPrimary:  { borderRadius: radius.lg, overflow: 'hidden' },
+  btnGrad: { paddingVertical: 15, alignItems: 'center' },
+  btnPrimaryText:{ fontFamily: fonts.sansSemibold, fontSize: fontSize.buttonLarge, color: '#0A0800', letterSpacing: 0.3 },
+  btnSecondary:{ paddingVertical: 13, alignItems: 'center', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.bordeSuave },
+  btnSecondaryText:{ fontFamily: fonts.sansMedium, fontSize: fontSize.buttonLarge, color: colors.marfilMedio },
 });
