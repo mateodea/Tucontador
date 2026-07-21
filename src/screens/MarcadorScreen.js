@@ -146,7 +146,7 @@ export default function MarcadorScreen({ route, navigation }) {
 
       {/* SELECTOR MODO si aplica */}
       {juego.modoConteo === 'ambos' && (
-        <View style={styles.modoSelector}>
+        <View style={styles.modoWrap}>
           {['fosforos', 'numero'].map(modo => (
             <TouchableOpacity
               key={modo}
@@ -244,11 +244,11 @@ export default function MarcadorScreen({ route, navigation }) {
           <View style={styles.dialogWrap}>
             <Text style={styles.dialogTitle}>¿Deshacer el último punto?</Text>
             {ultimoMovimiento && (
-              <Text style={styles.dialogDesc}>
+              <Text style={styles.dialogSub}>
                 Se borrará: {equipos[ultimoMovimiento.equipo]?.nombre} · {ultimoMovimiento.descripcion}
               </Text>
             )}
-            <View style={styles.dialogBtns}>
+            <View style={styles.dialogBtnRow}>
               <TouchableOpacity
                 style={styles.dialogBtnCancel}
                 onPress={() => setModalDeshacer(false)}
@@ -397,6 +397,11 @@ const styles = StyleSheet.create({
     color: colors.marfil,
     flexShrink: 1,
   },
+  fosforosContainer: {
+    flex: 1,
+    width: '100%',
+    paddingHorizontal: spacing.xs,
+  },
 
   // Número total
   totalRow: {
@@ -479,10 +484,18 @@ const styles = StyleSheet.create({
   },
 
   // ─── Modales ─────────────────────────────────────────────────────────────
-  modalSheet: {
+  modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: spacing.md,
+  },
+  modalSheet: {
+    backgroundColor: '#141820',
+    borderWidth: 1,
+    borderColor: colors.bordeDoradoMedio,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
   },
   modalHandle: {
     width: 36,
