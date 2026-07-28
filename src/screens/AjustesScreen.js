@@ -1,186 +1,142 @@
-// ─── TUCONTADOR — Pantalla de ajustes ───────────────────────────────────────
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, Switch,
   ScrollView, StyleSheet, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import AppBackground from '../components/common/AppBackground';
+import ScreenHeader from '../components/common/ScreenHeader';
 import { getAjustes, setAjustes, borrarHistorial, AJUSTES_DEFAULT } from '../utils/storage';
 import { colors } from '../theme/colors';
-import { fonts, fontSize, spacing, radius } from '../theme/typography';
+import { fonts, spacing, radius } from '../theme/typography';
+
+const GROUPS = [
+  {
+    title: 'Respuesta táctil',
+    rows: [
+      ['vibracion', 'Vibración', 'Respuesta táctil al tocar'],
+    ],
+  },
+  {
+    title: 'Juego',
+    rows: [
+      ['confirmarPuntos', 'Confirmar puntos', 'Pedir confirmación antes de sumar'],
+      ['permitirDeshacer', 'Permitir deshacer', 'Corregir el último movimiento'],
+      ['guardarHistorial', 'Guardar historial', 'Recordar partidas anteriores'],
+    ],
+  },
+  {
+    title: 'Pantalla',
+    rows: [['pantallaEncendida', 'Pantalla siempre encendida', 'No apagar mientras jugás']],
+  },
+];
 
 export default function AjustesScreen({ navigation }) {
-  const insets   = useSafeAreaInsets();
-  const [ajustes, setAjustesLocal] = useState(AJUSTES_DEFAULT);
+  const insets = useSafeAreaInsets();
+  const [settings, setSettings] = useState(AJUSTES_DEFAULT);
+  useEffect(() => { getAjustes().then(setSettings); }, []);
 
-  useEffect(() => {
-    getAjustes().then(setAjustesLocal);
-  }, []);
-
-  const toggle = async (key) => {
-    const nuevos = { ...ajustes, [key]: !ajustes[key] };
-    setAjustesLocal(nuevos);
-    await setAjustes(nuevos);
+  const toggle = async key => {
+    const next = { ...settings, [key]: !settings[key] };
+    setSettings(next);
+    await setAjustes(next);
   };
 
-  const confirmarBorrarHistorial = () => {
-    Alert.alert(
-      '¿Borrar historial?',
-      'Se eliminarán todas las partidas guardadas. Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Borrar todo',
-          style: 'destructive',
-          onPress: async () => {
-            await borrarHistorial();
-            Alert.alert('Listo', 'El historial fue borrado.');
-          },
-        },
-      ]
-    );
-  };
-
-  const renderSwitch = (key, label, descripcion, iconColor) => (
-    <View style={styles.settingRow} key={key}>
-      <View style={[styles.settingIcon, { backgroundColor: `${iconColor}20`, borderColor: `${iconColor}35` }]}>
-        <View style={[styles.settingIconDot, { backgroundColor: iconColor }]} />
-      </View>
-      <View style={styles.settingTexto}>
-        <Text style={styles.settingNombre}>{label}</Text>
-        {descripcion && <Text style={styles.settingDesc}>{descripcion}</Text>}
-      </View>
-      <Switch
-        value={ajustes[key]}
-        onValueChange={() => toggle(key)}
-        trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(184,150,46,0.4)' }}
-        thumbColor={ajustes[key] ? colors.oro : 'rgba(255,255,255,0.4)'}
-        ios_backgroundColor="rgba(255,255,255,0.1)"
-      />
-    </View>
+  const clear = () => Alert.alert(
+    '¿Borrar historial?',
+    'Se eliminarán todas las partidas guardadas.',
+    [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Borrar todo', style: 'destructive', onPress: borrarHistorial },
+    ]
   );
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#243d28', '#1C2B1F', '#101a12']}
-        style={StyleSheet.absoluteFill}
-      />
-
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Ajustes</Text>
-        <View style={{ width: 30 }} />
-      </View>
-
+    <AppBackground framed>
+      <ScreenHeader title="Ajustes" subtitle="Tu experiencia" onBack={() => navigation.goBack()} large />
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-
-        {/* Sonido y vibración */}
-        <Text style={styles.secLabel}>Sonido y vibración</Text>
-        <View style={styles.card}>
-          {renderSwitch('sonidos',   'Sonidos',   'Al sumar puntos y al ganar',         colors.oro)}
-          {renderSwitch('vibracion', 'Vibración', 'Feedback táctil al tocar',           colors.azul)}
-        </View>
-
-        {/* Juego */}
-        <Text style={styles.secLabel}>Juego</Text>
-        <View style={styles.card}>
-          {renderSwitch('confirmarPuntos',   'Confirmar puntos',        'Pedir confirmación antes de sumar', colors.rojo)}
-          {renderSwitch('permitirDeshacer',  'Permitir deshacer',       'Botón para corregir el último punto', colors.verdeHoja)}
-          {renderSwitch('guardarHistorial',  'Guardar historial',       'Recordar partidas anteriores',       colors.doradoAntiguo)}
-        </View>
-
-        {/* Pantalla */}
-        <Text style={styles.secLabel}>Pantalla</Text>
-        <View style={styles.card}>
-          {renderSwitch('pantallaEncendida', 'Pantalla siempre encendida', 'No apagar mientras jugás', colors.marfil)}
-        </View>
-
-        {/* Historial */}
-        <Text style={styles.secLabel}>Datos</Text>
-        <View style={styles.card}>
-          <TouchableOpacity style={styles.actionRow} onPress={confirmarBorrarHistorial}>
-            <Text style={styles.actionLabel}>Borrar historial de partidas</Text>
-            <Text style={styles.actionChev}>›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Acerca de */}
-        <Text style={styles.secLabel}>Acerca de</Text>
-        <View style={styles.card}>
-          <View style={styles.actionRow}>
-            <Text style={styles.actionLabel}>Tucontador</Text>
-            <Text style={styles.actionValue}>v1.0.0</Text>
+        {GROUPS.map(group => (
+          <View key={group.title}>
+            <Text style={styles.groupTitle}>{group.title}</Text>
+            <View style={styles.card}>
+              {group.rows.map(([key, title, description], index) => (
+                <View key={key} style={[styles.row, index > 0 && styles.rowBorder]}>
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowTitle}>{title}</Text>
+                    <Text style={styles.rowDescription}>{description}</Text>
+                  </View>
+                  <Switch
+                    value={settings[key]}
+                    onValueChange={() => toggle(key)}
+                    trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(214,175,91,0.42)' }}
+                    thumbColor={settings[key] ? colors.oroBrillo : '#73776F'}
+                    ios_backgroundColor="rgba(255,255,255,0.08)"
+                  />
+                </View>
+              ))}
+            </View>
           </View>
-          <View style={[styles.actionRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.actionLabel}>Hecho en Argentina</Text>
-            <Text style={styles.actionValue}>🇦🇷</Text>
-          </View>
-        </View>
+        ))}
 
+        <Text style={styles.groupTitle}>Datos</Text>
+        <TouchableOpacity style={styles.deleteButton} onPress={clear}>
+          <Text style={styles.deleteText}>Borrar historial de partidas</Text>
+          <Text style={styles.deleteArrow}>›</Text>
+        </TouchableOpacity>
+
+        <View style={styles.about}>
+          <Text style={styles.aboutName}>Tucontador</Text>
+          <Text style={styles.aboutVersion}>Versión 1.0.0 · Hecho en Argentina 🇦🇷</Text>
+        </View>
       </ScrollView>
-    </View>
+    </AppBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: spacing.md, paddingBottom: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(184,150,46,0.1)', gap: spacing.sm,
-  },
-  backBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    borderWidth: 1, borderColor: 'rgba(184,150,46,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  backText:    { fontSize: 14, color: 'rgba(184,150,46,0.7)' },
-  headerTitle: { flex: 1, fontFamily: fonts.serif, fontSize: fontSize.screenTitle, color: colors.marfil, textAlign: 'center' },
-
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.lg, gap: spacing.md },
-
-  secLabel: {
-    fontFamily: fonts.sansBold, fontSize: fontSize.labelTiny,
-    color: 'rgba(184,150,46,0.55)', letterSpacing: 2.5,
-    textTransform: 'uppercase', marginBottom: spacing.xs,
+  content: { paddingHorizontal: 20, gap: 14 },
+  groupTitle: {
+    fontFamily: fonts.sansBold,
+    fontSize: 9,
+    color: colors.oro,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   card: {
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    borderWidth: 1, borderColor: colors.bordeDorado,
-    borderRadius: radius.md, overflow: 'hidden',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.bordeDoradoMedio,
+    backgroundColor: 'rgba(2,10,7,0.46)',
+    overflow: 'hidden',
   },
-
-  settingRow: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: spacing.md, gap: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
+  row: {
+    minHeight: 61,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
   },
-  settingIcon: {
-    width: 34, height: 34, borderRadius: radius.sm,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
+  rowBorder: { borderTopWidth: 1, borderTopColor: colors.bordeDorado },
+  rowText: { flex: 1 },
+  rowTitle: { fontFamily: fonts.serif, fontSize: 18, color: colors.marfil },
+  rowDescription: { fontFamily: fonts.sans, fontSize: 9, color: colors.marfilMedio, marginTop: 1 },
+  deleteButton: {
+    minHeight: 53,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.rojoBorde,
+    backgroundColor: 'rgba(92,23,18,0.32)',
   },
-  settingIconDot: { width: 10, height: 10, borderRadius: 5 },
-  settingTexto:   { flex: 1 },
-  settingNombre:  { fontFamily: fonts.sansSemibold, fontSize: fontSize.body, color: colors.marfil },
-  settingDesc:    { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: colors.marfilTenue, marginTop: 1 },
-
-  actionRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  actionLabel: { fontFamily: fonts.sansMedium, fontSize: fontSize.body, color: colors.marfil },
-  actionValue: { fontFamily: fonts.sans, fontSize: fontSize.body, color: colors.marfilTenue },
-  actionChev:  { fontSize: 18, color: 'rgba(184,150,46,0.4)' },
+  deleteText: { flex: 1, fontFamily: fonts.serif, fontSize: 18, color: colors.marfil },
+  deleteArrow: { fontSize: 25, color: colors.rojo },
+  about: { alignItems: 'center', paddingVertical: 15 },
+  aboutName: { fontFamily: fonts.serifItalic, fontSize: 23, color: colors.oro },
+  aboutVersion: { fontFamily: fonts.sans, fontSize: 9, color: colors.marfilSuave },
 });

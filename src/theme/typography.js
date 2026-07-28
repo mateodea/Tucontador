@@ -15,10 +15,10 @@ export const fonts = {
 
 export const fontSize = {
   // Titulos
-  appTitle:       36,
-  gameTitle:      28,
-  screenTitle:    20,
-  sectionTitle:   18,
+  appTitle:       46,
+  gameTitle:      38,
+  screenTitle:    26,
+  sectionTitle:   20,
 
   // Puntajes
   scoreHuge:      72,

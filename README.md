@@ -1,6 +1,8 @@
 # Tucontador 🃏
 
-Contador de puntos para juegos de cartas argentinos y uruguayos.
+Contador de puntos para juegos de cartas argentinos y uruguayos, con una
+interfaz inspirada en el paño de juego, las cartas españolas y el conteo
+tradicional con fósforos.
 
 ## Juegos incluidos
 - Truco Argentino (con Envido)
@@ -13,6 +15,15 @@ Contador de puntos para juegos de cartas argentinos y uruguayos.
 - Generala
 - Modo Libre
 
+## Experiencia
+- Marcador de Truco táctil: tocar el lado de un equipo suma un punto
+- Seis grupos verticales de fósforos por equipo (3 malas + 3 buenas)
+- Partida rápida desde el menú principal
+- Configuración de 2 a 8 jugadores según el juego
+- Historial y estadísticas locales
+- Reglas rápidas y prototipo funcional de torneos
+- Ajustes persistentes de vibración, confirmación e historial
+
 ## Requisitos
 - Node.js 18 o superior
 - Expo Go en tu Android o iOS
@@ -20,13 +31,14 @@ Contador de puntos para juegos de cartas argentinos y uruguayos.
 ## Instalación
 
 ```bash
-# 1. Instalar dependencias
-npm install
+# 1. Instalar dependencias exactas
+npm ci
 
-# 2. Arrancar el servidor
-npx expo start
+# 2. Arrancar el servidor (misma red Wi-Fi)
+npx expo start --lan
 
-# 3. Escanear el QR con Expo Go en tu celular
+# 3. Si la red local bloquea la conexión
+npx expo start --tunnel
 ```
 
 ## Estructura del proyecto

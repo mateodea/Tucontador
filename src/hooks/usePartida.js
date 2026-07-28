@@ -9,6 +9,7 @@ export function usePartida({ juego, equipos, limite, modoConteo, ajustes }) {
   const [terminada, setTerminada]   = useState(false);
   const [ganador, setGanador]       = useState(null);
   const inicioRef                   = useRef(Date.now());
+  const movimientosRef             = useRef([]);
 
   // ── Sumar puntos ──────────────────────────────────────────────────────────
   const sumarPuntos = useCallback((equipoIdx, valor, descripcion = '') => {
@@ -16,7 +17,9 @@ export function usePartida({ juego, equipos, limite, modoConteo, ajustes }) {
 
     setPuntajes(prev => {
       const nuevos = [...prev];
-      nuevos[equipoIdx] = Math.max(0, nuevos[equipoIdx] + valor);
+      const anterior = nuevos[equipoIdx];
+      nuevos[equipoIdx] = Math.max(0, anterior + valor);
+      if (nuevos[equipoIdx] === anterior) return prev;
 
       // Registrar movimiento
       const mov = {
@@ -27,7 +30,9 @@ export function usePartida({ juego, equipos, limite, modoConteo, ajustes }) {
         totalTras: nuevos[equipoIdx],
         timestamp: new Date().toISOString(),
       };
-      setMovimientos(m => [...m, mov]);
+      const movimientosActualizados = [...movimientosRef.current, mov];
+      movimientosRef.current = movimientosActualizados;
+      setMovimientos(movimientosActualizados);
 
       // Vibración
       if (ajustes?.vibracion) {
@@ -53,7 +58,7 @@ export function usePartida({ juego, equipos, limite, modoConteo, ajustes }) {
             puntajes:    nuevos,
             ganador:     equipoIdx,
             limite,
-            movimientos: [...movimientos, mov],
+            movimientos: movimientosActualizados,
             duracion:    Math.floor((Date.now() - inicioRef.current) / 1000),
           });
         }
@@ -61,7 +66,7 @@ export function usePartida({ juego, equipos, limite, modoConteo, ajustes }) {
 
       return nuevos;
     });
-  }, [terminada, limite, juego, equipos, movimientos, ajustes]);
+  }, [terminada, limite, juego, equipos, ajustes]);
 
   // ── Deshacer último movimiento ────────────────────────────────────────────
   const deshacer = useCallback(() => {
@@ -73,7 +78,9 @@ export function usePartida({ juego, equipos, limite, modoConteo, ajustes }) {
       nuevos[ultimo.equipo] = Math.max(0, nuevos[ultimo.equipo] - ultimo.valor);
       return nuevos;
     });
-    setMovimientos(m => m.slice(0, -1));
+    const restantes = movimientosRef.current.slice(0, -1);
+    movimientosRef.current = restantes;
+    setMovimientos(restantes);
     setTerminada(false);
     setGanador(null);
 
@@ -88,6 +95,7 @@ export function usePartida({ juego, equipos, limite, modoConteo, ajustes }) {
   const reiniciar = useCallback(() => {
     setPuntajes(equipos.map(() => 0));
     setMovimientos([]);
+    movimientosRef.current = [];
     setTerminada(false);
     setGanador(null);
     inicioRef.current = Date.now();

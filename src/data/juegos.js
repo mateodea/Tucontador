@@ -62,7 +62,8 @@ export const JUEGOS = {
     limitesDefault: [50, 100, 200],
     limiteMax:    200,
     modoConteo:   'numero',
-    equipos:      2,
+    equipos:      8,
+    equiposMin:   2,
     inputManual:  true, // se ingresa el puntaje a mano
     botones: [
       { label: 'Confirmar mano', valor: 0,   tipo: 'confirmar' },
@@ -174,6 +175,12 @@ export const JUEGOS = {
     equipos:      4,
     equiposMin:   2,
     casillas: [
+      { id: 'unos',           label: '1',                tipo: 'numero', numero: 1 },
+      { id: 'doses',          label: '2',                tipo: 'numero', numero: 2 },
+      { id: 'treses',         label: '3',                tipo: 'numero', numero: 3 },
+      { id: 'cuatros',        label: '4',                tipo: 'numero', numero: 4 },
+      { id: 'cincos',         label: '5',                tipo: 'numero', numero: 5 },
+      { id: 'seises',         label: '6',                tipo: 'numero', numero: 6 },
       { id: 'escalera',       label: 'Escalera',        puntos: 20, puntosServida: 25 },
       { id: 'full',           label: 'Full',             puntos: 30, puntosServida: 35 },
       { id: 'poker',          label: 'Póker',            puntos: 40, puntosServida: 45 },

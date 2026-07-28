@@ -7,19 +7,21 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { guardarPartida } from '../utils/storage';
 import { colors } from '../theme/colors';
 import { fonts, fontSize, spacing, radius } from '../theme/typography';
 
 // Categorías de puntos en Escoba del 15
 const CATEGORIAS = [
-  { id: 'cartas',  label: 'Cartas',   desc: 'Más cartas',      puntos: 1 },
-  { id: 'escobas', label: 'Escobas',  desc: '+1 por escoba',   puntos: 1 },
-  { id: 'siete',   label: '7 de oro', desc: 'El mejor setenta',puntos: 1 },
-  { id: 'setenta', label: 'Setenta',  desc: 'Mayor setenta',   puntos: 1 },
+  { id: 'cartas',  label: 'Cartas',   desc: 'Más cartas',       puntos: 1 },
+  { id: 'oros',    label: 'Oros',     desc: 'Más cartas de oro',puntos: 1 },
+  { id: 'sietes',  label: 'Sietes',   desc: 'Más sietes',       puntos: 1 },
+  { id: 'setenta', label: 'Setenta',  desc: 'Mejor setenta',    puntos: 1 },
+  { id: 'escobas', label: 'Escobas',  desc: '+1 por escoba',    puntos: 1 },
 ];
 
 export default function MarcadorEscoba({ route, navigation }) {
-  const { equipos, limite, ajustes } = route.params;
+  const { juego, equipos, limite, ajustes } = route.params;
   const insets = useSafeAreaInsets();
 
   // Subcategorías separadas para mostrar desglose
@@ -60,6 +62,16 @@ export default function MarcadorEscoba({ route, navigation }) {
       const nuevoTotal = Object.values(nuevos[equipoIdx]).reduce((a, b) => a + b, 0);
       if (limite && nuevoTotal >= limite) {
         setGanadorIdx(equipoIdx);
+        if (ajustes?.guardarHistorial) {
+          guardarPartida({
+            juego: juego.id,
+            equipos: equipos.map(team => team.nombre),
+            puntajes: nuevos.map(team => Object.values(team).reduce((a, b) => a + b, 0)),
+            ganador: equipoIdx,
+            limite,
+            movimientos: [],
+          });
+        }
         setTimeout(() => setModalGanador(true), 400);
       }
 
@@ -73,7 +85,7 @@ export default function MarcadorEscoba({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#243d28', '#1C2B1F', '#101a12']} style={StyleSheet.absoluteFill}/>
+      <LinearGradient colors={[colors.panoClaro, colors.fondoPrincipal, colors.fondoProfundo]} style={StyleSheet.absoluteFill}/>
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -221,7 +233,7 @@ const styles = StyleSheet.create({
   },
   backText: { fontSize: 14, color: 'rgba(184,150,46,0.7)' },
   hdrTexto: { flex: 1 },
-  hdrTitulo: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.marfil, textAlign: 'center' },
+  hdrTitulo: { fontFamily: fonts.serif, fontSize: fontSize.screenTitle, lineHeight: 29, color: colors.marfil, textAlign: 'center' },
   hdrSub: { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: 'rgba(184,150,46,0.5)', textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase', marginTop: 1 },
 
   // Totales rápidos

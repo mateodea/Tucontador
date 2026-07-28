@@ -1,133 +1,148 @@
-// ─── TUCONTADOR — Componente de Fósforos ────────────────────────────────────
+// ─── TUCONTADOR — Fósforos tradicionales de Truco ───────────────────────────
 import React from 'react';
-import Svg, { Rect, Circle, Line, Defs, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import Svg, {
+  Rect, Circle, Line, Defs,
+  LinearGradient as SvgGradient,
+  RadialGradient, Stop,
+} from 'react-native-svg';
+import { colors } from '../../theme/colors';
+import { fonts } from '../../theme/typography';
 
-// ── Un grupo de hasta 5 fósforos formando un cuadrado ───────────────────────
-function GrupoFosforos({ cantidad, colorPalo, size = 48 }) {
-  // cantidad: 1 a 5
-  // 1 = lado izq, 2 = + arriba, 3 = + der, 4 = + abajo (cuadrado), 5 = + diagonal
-  const scale = size / 52;
-  const s = (v) => v * scale;
-
-  return (
-    <Svg width={size} height={size} viewBox="0 0 52 52">
-      <Defs>
-        <LinearGradient id={`palo_${colorPalo}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0%"   stopColor="#E0B050" />
-          <Stop offset="35%"  stopColor="#C8902A" />
-          <Stop offset="70%"  stopColor="#8B5E18" />
-          <Stop offset="100%" stopColor="#6B4010" />
-        </LinearGradient>
-        <RadialGradient id="cabeza" cx="35%" cy="30%" r="65%">
-          <Stop offset="0%"   stopColor="#FF7050" />
-          <Stop offset="100%" stopColor="#C01808" />
-        </RadialGradient>
-      </Defs>
-
-      {/* LADO IZQUIERDO — aparece desde punto 1 */}
-      {cantidad >= 1 && (
-        <>
-          <Rect x="9" y="9" width="4" height="34" rx="2" fill={`url(#palo_${colorPalo})`} />
-          <Circle cx="11" cy="8" r="5.5" fill="url(#cabeza)" stroke="#700000" strokeWidth="0.6" />
-        </>
-      )}
-
-      {/* LADO SUPERIOR — aparece desde punto 2 */}
-      {cantidad >= 2 && (
-        <>
-          <Rect x="9" y="9" width="34" height="4" rx="2" fill={`url(#palo_${colorPalo})`} />
-          <Circle cx="44" cy="11" r="5.5" fill="url(#cabeza)" stroke="#700000" strokeWidth="0.6" />
-        </>
-      )}
-
-      {/* LADO DERECHO — aparece desde punto 3 */}
-      {cantidad >= 3 && (
-        <>
-          <Rect x="39" y="9" width="4" height="34" rx="2" fill={`url(#palo_${colorPalo})`} />
-          <Circle cx="41" cy="44" r="5.5" fill="url(#cabeza)" stroke="#700000" strokeWidth="0.6" />
-        </>
-      )}
-
-      {/* LADO INFERIOR — aparece desde punto 4 (cuadrado completo) */}
-      {cantidad >= 4 && (
-        <>
-          <Rect x="9" y="39" width="34" height="4" rx="2" fill={`url(#palo_${colorPalo})`} />
-          <Circle cx="10" cy="41" r="5.5" fill="url(#cabeza)" stroke="#700000" strokeWidth="0.6" />
-        </>
-      )}
-
-      {/* DIAGONAL — aparece en punto 5 (cuadrado completo) */}
-      {cantidad >= 5 && (
-        <>
-          <Line
-            x1="11" y1="11" x2="41" y2="41"
-            stroke={`url(#palo_${colorPalo})`}
-            strokeWidth="4.5"
-            strokeLinecap="round"
-          />
-          <Circle cx="42" cy="42" r="5.5" fill="url(#cabeza)" stroke="#700000" strokeWidth="0.6" />
-        </>
-      )}
-    </Svg>
-  );
-}
-
-// ── Componente principal: dibuja todos los grupos necesarios ─────────────────
-export default function Fosforos({ puntos, colorEquipo = 'rojo', size = 46 }) {
-  if (puntos <= 0) return null;
-
-  const grupos = Math.ceil(puntos / 5);
-  const grupos_completos = Math.floor(puntos / 5);
-  const resto = puntos % 5;
-
-  // Color del palo según equipo
-  const colorPalo = colorEquipo === 'rojo' ? 'rojo' : 'azul';
+export function GrupoFosforos({ cantidad = 0, size = 42, guia = true }) {
+  const visible = Math.max(0, Math.min(5, cantidad));
 
   return (
-    <View style={styles.container}>
-      {Array.from({ length: grupos }).map((_, i) => {
-        const esUltimo = i === grupos - 1;
-        const cantidadEnEsteGrupo = esUltimo && resto > 0 ? resto : 5;
+    <View style={[styles.slot, { width: size, height: size }]}>
+      {guia && visible === 0 ? <View style={styles.ghost} /> : null}
+      <Svg width={size} height={size} viewBox="0 0 52 52">
+        <Defs>
+          <SvgGradient id="madera" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="#F0C979" />
+            <Stop offset="42%" stopColor="#C9913D" />
+            <Stop offset="100%" stopColor="#754417" />
+          </SvgGradient>
+          <RadialGradient id="cabeza" cx="35%" cy="30%" r="70%">
+            <Stop offset="0%" stopColor="#FF7656" />
+            <Stop offset="58%" stopColor="#CF2E19" />
+            <Stop offset="100%" stopColor="#711007" />
+          </RadialGradient>
+        </Defs>
 
-        return (
-          <View
-            key={i}
-            style={[
-              styles.grupoWrap,
-              colorEquipo === 'azul' && styles.grupoAzul,
-            ]}
-          >
-            <GrupoFosforos
-              cantidad={cantidadEnEsteGrupo}
-              colorPalo={colorPalo}
-              size={size}
-            />
-          </View>
-        );
-      })}
+        {/* 1: lateral izquierdo */}
+        {visible >= 1 && <Fosforo x1={11} y1={42} x2={11} y2={10} cabezaX={11} cabezaY={9} />}
+        {/* 2: base; forma la L tradicional */}
+        {visible >= 2 && <Fosforo x1={11} y1={41} x2={42} y2={41} cabezaX={43} cabezaY={41} />}
+        {/* 3: lateral derecho */}
+        {visible >= 3 && <Fosforo x1={41} y1={41} x2={41} y2={10} cabezaX={41} cabezaY={9} />}
+        {/* 4: cierre superior */}
+        {visible >= 4 && <Fosforo x1={41} y1={11} x2={11} y2={11} cabezaX={10} cabezaY={11} />}
+        {/* 5: diagonal */}
+        {visible >= 5 && <Fosforo x1={12} y1={40} x2={40} y2={12} cabezaX={41} cabezaY={11} />}
+      </Svg>
     </View>
   );
 }
 
-// ── Versión con override de color para el palo (azul) ───────────────────────
-// Usamos un truco: los gradientes SVG se reusan por ID,
-// así que para el equipo azul envolvemos con una vista teñida
-// y redefinimos el gradiente en cada instancia.
+function Fosforo({ x1, y1, x2, y2, cabezaX, cabezaY }) {
+  return (
+    <>
+      <Line
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke="url(#madera)"
+        strokeWidth="4.2"
+        strokeLinecap="round"
+      />
+      <Circle
+        cx={cabezaX}
+        cy={cabezaY}
+        r="4.7"
+        fill="url(#cabeza)"
+        stroke="#5B0C06"
+        strokeWidth="0.7"
+      />
+    </>
+  );
+}
+
+export default function Fosforos({ puntos = 0, size = 42, mostrarGuias = true }) {
+  const valor = Math.max(0, Math.min(30, puntos));
+  const cantidades = Array.from({ length: 6 }, (_, i) =>
+    Math.max(0, Math.min(5, valor - i * 5))
+  );
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.fase}>MALAS</Text>
+      <View style={styles.bloque}>
+        {cantidades.slice(0, 3).map((cantidad, i) => (
+          <GrupoFosforos key={`m-${i}`} cantidad={cantidad} size={size} guia={mostrarGuias} />
+        ))}
+      </View>
+
+      <View style={styles.dividerRow}>
+        <View style={styles.divider} />
+        <Text style={styles.quince}>15</Text>
+        <View style={styles.divider} />
+      </View>
+
+      <Text style={styles.fase}>BUENAS</Text>
+      <View style={styles.bloque}>
+        {cantidades.slice(3, 6).map((cantidad, i) => (
+          <GrupoFosforos key={`b-${i}`} cantidad={cantidad} size={size} guia={mostrarGuias} />
+        ))}
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection:  'row',
-    flexWrap:       'wrap',
-    gap:            8,
-    alignItems:     'flex-start',
-    justifyContent: 'flex-start',
-    flex:           1,
+    alignItems: 'center',
+    flexShrink: 1,
   },
-  grupoWrap: {
-    // nada especial para rojo
+  fase: {
+    fontFamily: fonts.sansBold,
+    fontSize: 8,
+    letterSpacing: 1.8,
+    color: colors.oro,
+    marginBottom: 2,
   },
-  grupoAzul: {
-    // El tinte azul se maneja a nivel de gradiente SVG
+  bloque: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  slot: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ghost: {
+    position: 'absolute',
+    width: '78%',
+    height: '78%',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(214,175,91,0.09)',
+    borderRadius: 4,
+  },
+  dividerRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginVertical: 3,
+  },
+  divider: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.bordeDoradoFuerte,
+  },
+  quince: {
+    fontFamily: fonts.serif,
+    fontSize: 11,
+    color: colors.oro,
   },
 });

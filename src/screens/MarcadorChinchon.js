@@ -1,312 +1,220 @@
-// ─── TUCONTADOR — Marcador Chinchón ─────────────────────────────────────────
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Animated, Modal, ScrollView,
+  ScrollView, StyleSheet, Alert,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import AppBackground from '../components/common/AppBackground';
+import ScreenHeader from '../components/common/ScreenHeader';
+import { guardarPartida } from '../utils/storage';
 import { colors } from '../theme/colors';
-import { fonts, fontSize, spacing, radius } from '../theme/typography';
+import { fonts, spacing, radius } from '../theme/typography';
+
+const PLAYER_COLORS = [
+  colors.rojo, colors.azul, '#5BA66B', colors.oro,
+  '#A77AB8', '#D4844A', '#68A9A0', '#B96B72',
+];
 
 export default function MarcadorChinchon({ route, navigation }) {
-  const { equipos, limite, ajustes } = route.params;
-  const insets = useSafeAreaInsets();
+  const { juego, equipos, limite, ajustes } = route.params;
+  const [scores, setScores] = useState(equipos.map(() => 0));
+  const [inputs, setInputs] = useState(equipos.map(() => ''));
+  const [eliminated, setEliminated] = useState(equipos.map(() => false));
+  const [rounds, setRounds] = useState([]);
 
-  // Estado
-  const [puntajes, setPuntajes]       = useState(equipos.map(() => 0));
-  const [inputs, setInputs]           = useState(equipos.map(() => ''));
-  const [historial, setHistorial]     = useState([]);
-  const [modalGanador, setModalGanador] = useState(false);
-  const [ganadorIdx, setGanadorIdx]   = useState(null);
+  const confirmRound = () => {
+    const values = inputs.map((value, index) =>
+      eliminated[index] ? 0 : Number.parseInt(value, 10) || 0
+    );
+    if (values.every(value => value === 0) && inputs.every(value => value === '')) return;
 
-  // Animaciones de rebote al confirmar
-  const escalaAnimR = useRef(new Animated.Value(1)).current;
-  const escalaAnimB = useRef(new Animated.Value(1)).current;
-  const escalas     = [escalaAnimR, escalaAnimB];
+    const nextScores = scores.map((score, index) => Math.max(0, score + values[index]));
+    const nextEliminated = nextScores.map(score => score >= limite);
+    const active = nextEliminated
+      .map((isOut, index) => ({ isOut, index }))
+      .filter(item => !item.isOut);
 
-  const animarPuntaje = (idx) => {
-    Animated.sequence([
-      Animated.spring(escalas[idx], { toValue: 1.18, useNativeDriver: true, speed: 40 }),
-      Animated.spring(escalas[idx], { toValue: 1,    useNativeDriver: true, speed: 20 }),
-    ]).start();
-  };
-
-  // ── Confirmar una mano ────────────────────────────────────────────────────
-  const confirmarMano = () => {
-    // Validar que al menos un equipo tenga input
-    const valoresNumericos = inputs.map(v => v === '' ? 0 : parseInt(v) || 0);
-    if (valoresNumericos.every(v => v === 0) && inputs.every(i => i === '')) return;
-
-    const nuevos = puntajes.map((p, i) => p + valoresNumericos[i]);
-
-    // Registrar en historial
-    setHistorial(h => [...h, {
-      mano:   h.length + 1,
-      puntos: valoresNumericos,
-      totales: nuevos,
-    }]);
-
-    // Animar los que cambiaron
-    valoresNumericos.forEach((v, i) => { if (v !== 0) animarPuntaje(i); });
-
-    // Haptics
+    setScores(nextScores);
+    setEliminated(nextEliminated);
+    setInputs(equipos.map(() => ''));
+    setRounds(current => [...current, { values, previousScores: scores, previousEliminated: eliminated }]);
     if (ajustes?.vibracion) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    setPuntajes(nuevos);
-    setInputs(equipos.map(() => ''));
-
-    // Verificar si alguien llegó al límite (en Chinchón gana quien tiene MENOS)
-    // El que llega al límite queda ELIMINADO, gana el que queda
-    const eliminados = nuevos.map(p => p >= limite);
-    if (eliminados.some(Boolean)) {
-      // Gana el que NO fue eliminado
-      const ganador = eliminados.findIndex(e => !e);
-      setGanadorIdx(ganador !== -1 ? ganador : 0);
-      setTimeout(() => setModalGanador(true), 500);
+    if (active.length <= 1 && nextEliminated.some(Boolean)) {
+      const winner = active[0]?.index ?? nextScores.indexOf(Math.min(...nextScores));
+      if (ajustes?.guardarHistorial) {
+        guardarPartida({
+          juego: juego.id,
+          equipos: equipos.map(team => team.nombre),
+          puntajes: nextScores,
+          ganador: winner,
+          limite,
+          movimientos: [],
+        });
+      }
+      setTimeout(() => Alert.alert(
+        `¡Ganó ${equipos[winner].nombre}!`,
+        `Terminó con ${nextScores[winner]} puntos.`,
+        [
+          { text: 'Revancha', onPress: reset },
+          { text: 'Volver al inicio', onPress: () => navigation.navigate('Inicio') },
+        ]
+      ), 250);
     }
   };
 
-  // ── Chinchón especial (resta 10 al que lo hace) ───────────────────────────
-  const chinchon = (equipoIdx) => {
-    if (ajustes?.vibracion) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const nuevos = [...puntajes];
-    nuevos[equipoIdx] = Math.max(0, nuevos[equipoIdx] - 10);
-    setPuntajes(nuevos);
-    animarPuntaje(equipoIdx);
-    setHistorial(h => [...h, {
-      mano:    h.length + 1,
-      especial: `¡Chinchón! (${equipos[equipoIdx].nombre})`,
-      puntos:  equipos.map((_, i) => i === equipoIdx ? -10 : 0),
-      totales: nuevos,
+  const chinchon = index => {
+    const next = [...scores];
+    next[index] = Math.max(0, next[index] - 10);
+    setRounds(current => [...current, {
+      values: equipos.map((_, i) => i === index ? -10 : 0),
+      previousScores: scores,
+      previousEliminated: eliminated,
     }]);
+    setScores(next);
+    if (ajustes?.vibracion) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  // ── Deshacer última mano ──────────────────────────────────────────────────
-  const deshacer = () => {
-    if (historial.length === 0) return;
-    const ultima = historial[historial.length - 1];
-    setPuntajes(ultima.totales.map((t, i) => t - (ultima.puntos?.[i] || 0)));
-    setHistorial(h => h.slice(0, -1));
-    if (ajustes?.vibracion) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const undo = () => {
+    const last = rounds[rounds.length - 1];
+    if (!last) return;
+    setScores(last.previousScores);
+    setEliminated(last.previousEliminated);
+    setRounds(current => current.slice(0, -1));
   };
 
-  const coloresEquipo = [colors.rojo, colors.azul];
-  const coloresFondo  = ['#180808', '#080c18'];
+  const reset = () => {
+    setScores(equipos.map(() => 0));
+    setInputs(equipos.map(() => ''));
+    setEliminated(equipos.map(() => false));
+    setRounds([]);
+  };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#243d28', '#1C2B1F', '#101a12']} style={StyleSheet.absoluteFill}/>
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.hdrTexto}>
-          <Text style={styles.hdrTitulo}>Chinchón</Text>
-          <Text style={styles.hdrSub}>{equipos.map(e => e.nombre).join(' vs ')} · hasta {limite} pts</Text>
-        </View>
-        <TouchableOpacity style={styles.backBtn} onPress={deshacer}>
-          <Text style={styles.backText}>↩</Text>
-        </TouchableOpacity>
+    <AppBackground>
+      <ScreenHeader
+        title="Chinchón"
+        subtitle={`Mano ${rounds.length + 1} · límite ${limite}`}
+        onBack={() => navigation.goBack()}
+        rightLabel="↶"
+        onRight={undo}
+        large
+      />
+      <View style={styles.tableHeader}>
+        <Text style={[styles.headerCell, styles.playerCell]}>Jugador</Text>
+        <Text style={styles.headerCell}>Total</Text>
+        <Text style={[styles.headerCell, styles.handCell]}>Puntos de esta mano</Text>
       </View>
-
-      {/* Puntajes grandes */}
-      <View style={styles.tablero}>
-        {equipos.map((equipo, i) => (
-          <React.Fragment key={i}>
-            {i === 1 && <View style={styles.separador}/>}
-            <View style={[styles.panel, { backgroundColor: coloresFondo[i] }]}>
-
-              <View style={styles.panelHeader}>
-                <View style={[styles.dot, { backgroundColor: i === 0 ? colors.rojoProfundo : colors.azulOscuro }]}/>
-                <Text style={[styles.equipoNombre, { color: i === 0 ? '#C06050' : '#5090C0' }]}>
-                  {equipo.nombre}
-                </Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {equipos.map((team, index) => {
+          const color = PLAYER_COLORS[index % PLAYER_COLORS.length];
+          const out = eliminated[index];
+          return (
+            <View key={`${team.nombre}-${index}`} style={[styles.playerRow, out && styles.outRow]}>
+              <View style={[styles.playerCell, styles.playerInfo]}>
+                <View style={[styles.badge, { borderColor: color }]}>
+                  <Text style={[styles.badgeText, { color }]}>{index + 1}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.playerName, out && styles.outText]} numberOfLines={1}>{team.nombre}</Text>
+                  <TouchableOpacity onPress={() => chinchon(index)} disabled={out}>
+                    <Text style={[styles.chinchon, { color }]}>Chinchón −10</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-
-              {/* Número grande animado */}
-              <Animated.Text style={[
-                styles.puntajeGrande,
-                { color: coloresEquipo[i], transform: [{ scale: escalas[i] }] },
-              ]}>
-                {puntajes[i]}
-              </Animated.Text>
-              <Text style={styles.deLimite}>de {limite}</Text>
-
-              {/* Barra progreso */}
-              <View style={styles.barraTrack}>
-                <View style={[styles.barraFill, {
-                  width: `${Math.min(100, (puntajes[i] / limite) * 100)}%`,
-                  backgroundColor: coloresEquipo[i],
-                }]}/>
+              <Text style={[styles.total, { color }, out && styles.outText]}>{scores[index]}</Text>
+              <View style={styles.handCell}>
+                {out ? (
+                  <Text style={styles.eliminated}>FUERA</Text>
+                ) : (
+                  <TextInput
+                    style={styles.input}
+                    value={inputs[index]}
+                    onChangeText={value => {
+                      const next = [...inputs];
+                      next[index] = value.replace(/[^0-9-]/g, '');
+                      setInputs(next);
+                    }}
+                    placeholder="0"
+                    placeholderTextColor={colors.marfilSuave}
+                    keyboardType="numbers-and-punctuation"
+                    textAlign="center"
+                  />
+                )}
               </View>
-
-              {/* Input de puntos */}
-              <View style={styles.inputWrap}>
-                <Text style={[styles.inputLabel, { color: coloresEquipo[i] }]}>Puntos mano</Text>
-                <TextInput
-                  style={[styles.input, { borderColor: `${coloresEquipo[i]}40` }]}
-                  value={inputs[i]}
-                  onChangeText={v => {
-                    const nuevos = [...inputs];
-                    nuevos[i] = v.replace(/[^0-9-]/g, '');
-                    setInputs(nuevos);
-                  }}
-                  placeholder="0"
-                  placeholderTextColor={colors.marfilTenue}
-                  keyboardType="numbers-and-punctuation"
-                  textAlign="center"
-                />
-              </View>
-
-              {/* Chinchón */}
-              <TouchableOpacity
-                style={[styles.chinchonBtn, { borderColor: `${coloresEquipo[i]}40` }]}
-                onPress={() => chinchon(i)}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.chinchonText, { color: coloresEquipo[i] }]}>
-                  ¡Chinchón! −10
-                </Text>
-              </TouchableOpacity>
-
             </View>
-          </React.Fragment>
-        ))}
-      </View>
-
-      {/* Botón confirmar mano */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 10 }]}>
-        <TouchableOpacity style={styles.confirmarBtn} onPress={confirmarMano} activeOpacity={0.8}>
-          <LinearGradient
-            colors={['#8B3A2A', '#6B2A1A']}
-            style={StyleSheet.absoluteFill}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          />
-          <Text style={styles.confirmarText}>Confirmar mano</Text>
-          <Text style={styles.confirmarSub}>
-            {inputs.map((v, i) => `${equipos[i].nombre}: ${v || '0'} pts`).join('  ·  ')}
-          </Text>
+          );
+        })}
+      </ScrollView>
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.confirm} onPress={confirmRound}>
+          <Text style={styles.confirmText}>Confirmar mano</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Modal ganador */}
-      <Modal visible={modalGanador} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.ganadorCard}>
-            <Text style={styles.ganadorEstrella}>★</Text>
-            <Text style={styles.ganadorLabel}>¡Ganadores!</Text>
-            <Text style={styles.ganadorNombre}>
-              {ganadorIdx !== null ? equipos[ganadorIdx]?.nombre : '—'}
-            </Text>
-            <Text style={styles.ganadorDetalle}>
-              {puntajes.map((p, i) => `${equipos[i].nombre}: ${p} pts`).join('  vs  ')}
-            </Text>
-            <View style={styles.ganadorBtns}>
-              <TouchableOpacity
-                style={styles.revanchaBtn}
-                onPress={() => {
-                  setModalGanador(false);
-                  setPuntajes(equipos.map(() => 0));
-                  setHistorial([]);
-                }}
-              >
-                <Text style={styles.revanchaText}>Revancha</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.menuBtn}
-                onPress={() => navigation.navigate('Inicio')}
-              >
-                <Text style={styles.menuText}>Menú</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+    </AppBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: spacing.md, paddingBottom: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(184,150,46,0.1)', gap: spacing.sm,
+  tableHeader: {
+    flexDirection: 'row',
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.bordeDoradoMedio,
   },
-  backBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    borderWidth: 1, borderColor: 'rgba(184,150,46,0.2)',
-    alignItems: 'center', justifyContent: 'center',
+  headerCell: {
+    width: 58,
+    fontFamily: fonts.sansBold,
+    fontSize: 8,
+    color: colors.oro,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
-  backText: { fontSize: 14, color: 'rgba(184,150,46,0.7)' },
-  hdrTexto: { flex: 1 },
-  hdrTitulo: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.marfil, textAlign: 'center' },
-  hdrSub: { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: 'rgba(184,150,46,0.5)', textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase', marginTop: 1 },
-
-  tablero: { flexDirection: 'row', flex: 1 },
-  separador: { width: 1, backgroundColor: 'rgba(184,150,46,0.12)' },
-
-  panel: {
-    flex: 1, alignItems: 'center',
-    padding: spacing.sm, paddingTop: spacing.md, gap: spacing.sm,
+  playerCell: { flex: 1 },
+  handCell: { width: 118 },
+  content: { padding: 18, paddingBottom: 100, gap: 8 },
+  playerRow: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.bordeDorado,
+    backgroundColor: 'rgba(2,10,7,0.46)',
   },
-  panelHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  dot: { width: 7, height: 7, borderRadius: 3.5 },
-  equipoNombre: { fontFamily: fonts.sansBold, fontSize: fontSize.label, letterSpacing: 1.5, textTransform: 'uppercase' },
-
-  puntajeGrande: {
-    fontFamily: fonts.serif, fontSize: fontSize.scoreHuge,
-    fontWeight: '700', lineHeight: fontSize.scoreHuge * 1.05,
-  },
-  deLimite: { fontFamily: fonts.sans, fontSize: fontSize.label, color: colors.marfilTenue, marginTop: -4 },
-
-  barraTrack: { width: '90%', height: 3, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' },
-  barraFill: { height: '100%', borderRadius: 2 },
-
-  inputWrap: { width: '90%', gap: 4 },
-  inputLabel: { fontFamily: fonts.sansBold, fontSize: fontSize.labelTiny, letterSpacing: 1.5, textTransform: 'uppercase' },
+  outRow: { opacity: 0.45 },
+  playerInfo: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  badge: { width: 33, height: 33, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontFamily: fonts.serif, fontSize: 17 },
+  playerName: { fontFamily: fonts.serif, fontSize: 19, color: colors.marfil },
+  chinchon: { fontFamily: fonts.sansMedium, fontSize: 8, marginTop: 2 },
+  total: { width: 58, fontFamily: fonts.serif, fontSize: 28, textAlign: 'center' },
   input: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderWidth: 1, borderRadius: radius.sm,
-    padding: spacing.sm,
-    fontFamily: fonts.serif, fontSize: fontSize.scoreMedium,
-    color: colors.marfil, textAlign: 'center',
+    width: 94,
+    height: 44,
+    alignSelf: 'center',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.bordeDoradoMedio,
+    backgroundColor: colors.marfil,
+    fontFamily: fonts.serif,
+    fontSize: 23,
+    color: colors.tinta,
   },
-
-  chinchonBtn: {
-    width: '90%', paddingVertical: 7, borderRadius: radius.sm,
-    backgroundColor: 'rgba(184,150,46,0.08)',
-    borderWidth: 1, alignItems: 'center',
+  eliminated: { fontFamily: fonts.sansBold, fontSize: 9, color: colors.rojo, textAlign: 'center' },
+  outText: { textDecorationLine: 'line-through' },
+  footer: { position: 'absolute', left: 18, right: 18, bottom: 18 },
+  confirm: {
+    height: 58,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.bordeDoradoFuerte,
+    backgroundColor: 'rgba(92,23,18,0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  chinchonText: { fontFamily: fonts.sansSemibold, fontSize: fontSize.bodySmall },
-
-  footer: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(184,150,46,0.1)' },
-  confirmarBtn: {
-    borderRadius: radius.md, paddingVertical: 13,
-    alignItems: 'center', overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(139,58,42,0.5)',
-  },
-  confirmarText: { fontFamily: fonts.serif, fontSize: fontSize.screenTitle, color: colors.marfil },
-  confirmarSub: { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: 'rgba(242,237,215,0.4)', marginTop: 2, letterSpacing: 1 },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  ganadorCard: {
-    backgroundColor: '#162018', borderRadius: radius.xl,
-    padding: spacing.xl, alignItems: 'center', gap: spacing.sm,
-    borderWidth: 1, borderColor: colors.bordeDoradoMedio, width: '100%',
-  },
-  ganadorEstrella: { fontSize: 52, color: colors.oro },
-  ganadorLabel: { fontFamily: fonts.sansBold, fontSize: fontSize.label, color: 'rgba(184,150,46,0.55)', letterSpacing: 3, textTransform: 'uppercase' },
-  ganadorNombre: { fontFamily: fonts.serifItalic, fontSize: fontSize.gameTitle, color: colors.oro },
-  ganadorDetalle: { fontFamily: fonts.sans, fontSize: fontSize.bodySmall, color: colors.marfilSuave, textAlign: 'center' },
-  ganadorBtns: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, width: '100%' },
-  revanchaBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, backgroundColor: 'rgba(42,107,58,0.3)', borderWidth: 1, borderColor: 'rgba(42,107,58,0.5)', alignItems: 'center' },
-  revanchaText: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.marfil },
-  menuBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: colors.bordeSuave, alignItems: 'center' },
-  menuText: { fontFamily: fonts.sansMedium, fontSize: fontSize.body, color: colors.marfilTenue },
+  confirmText: { fontFamily: fonts.serif, fontSize: 24, color: colors.marfil },
 });
