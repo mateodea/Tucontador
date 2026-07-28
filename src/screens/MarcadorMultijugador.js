@@ -7,6 +7,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { guardarPartida } from '../utils/storage';
 import { colors } from '../theme/colors';
 import { fonts, fontSize, spacing, radius } from '../theme/typography';
 
@@ -78,7 +79,18 @@ export default function MarcadorMultijugador({ route, navigation }) {
     const activos = nuevosEliminados.filter(e => !e).length;
     if (activos <= 1) {
       const ganador = nuevosEliminados.findIndex(e => !e);
-      setGanadorIdx(ganador !== -1 ? ganador : 0);
+      const winner = ganador !== -1 ? ganador : nuevos.indexOf(Math.min(...nuevos));
+      setGanadorIdx(winner);
+      if (ajustes?.guardarHistorial) {
+        guardarPartida({
+          juego: juego.id,
+          equipos: equipos.map(team => team.nombre),
+          puntajes: nuevos,
+          ganador: winner,
+          limite,
+          movimientos: [],
+        });
+      }
       setTimeout(() => setModalGanador(true), 500);
     }
   };
@@ -155,7 +167,7 @@ export default function MarcadorMultijugador({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#243d28', '#1C2B1F', '#101a12']} style={StyleSheet.absoluteFill}/>
+      <LinearGradient colors={[colors.panoClaro, colors.fondoPrincipal, colors.fondoProfundo]} style={StyleSheet.absoluteFill}/>
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -237,7 +249,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.28)', borderWidth: 1, borderColor: 'rgba(184,150,46,0.2)', alignItems: 'center', justifyContent: 'center' },
   backText: { fontSize: 14, color: 'rgba(184,150,46,0.7)' },
   hdrTexto: { flex: 1 },
-  hdrTitulo: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.marfil, textAlign: 'center' },
+  hdrTitulo: { fontFamily: fonts.serif, fontSize: fontSize.screenTitle, lineHeight: 29, color: colors.marfil, textAlign: 'center' },
   hdrSub: { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: 'rgba(184,150,46,0.5)', textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase', marginTop: 1 },
 
   rondaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: 'rgba(184,150,46,0.08)' },

@@ -1,197 +1,180 @@
-// ─── TUCONTADOR — Historial de partidas ─────────────────────────────────────
-import React, { useState, useCallback } from 'react';
-import {
-  View, Text, TouchableOpacity, FlatList,
-  StyleSheet,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import AppBackground from '../components/common/AppBackground';
+import ScreenHeader from '../components/common/ScreenHeader';
+import BottomNav from '../components/common/BottomNav';
 import { getHistorial } from '../utils/storage';
 import { JUEGOS } from '../data/juegos';
 import { colors } from '../theme/colors';
-import { fonts, fontSize, spacing, radius } from '../theme/typography';
+import { fonts, spacing, radius } from '../theme/typography';
 
 export default function HistorialScreen({ navigation }) {
-  const insets   = useSafeAreaInsets();
-  const [historial, setHistorial] = useState([]);
-  const [stats, setStats]         = useState({ total: 0, ganadas: 0, perdidas: 0 });
+  const [history, setHistory] = useState([]);
+  const [filter, setFilter] = useState('todos');
 
-  useFocusEffect(
-    useCallback(() => {
-      getHistorial().then(data => {
-        setHistorial(data);
-        // Stats básicas (cuenta "Nosotros" como equipo 0)
-        const ganadas  = data.filter(p => p.ganador === 0).length;
-        setStats({ total: data.length, ganadas, perdidas: data.length - ganadas });
-      });
-    }, [])
+  useFocusEffect(useCallback(() => {
+    getHistorial().then(setHistory);
+  }, []));
+
+  const visible = useMemo(
+    () => filter === 'todos'
+      ? history
+      : history.filter(item => filter === 'truco' ? item.juego?.startsWith('truco') : !item.juego?.startsWith('truco')),
+    [history, filter]
   );
+  const won = history.filter(item => item.ganador === 0).length;
+  const rate = history.length ? Math.round((won / history.length) * 100) : 0;
 
-  const formatFecha = (iso) => {
-    try {
-      return format(new Date(iso), "d 'de' MMM, HH:mm", { locale: es });
-    } catch {
-      return '—';
-    }
+  const dateLabel = iso => {
+    try { return format(new Date(iso), 'dd/MM/yyyy · HH:mm', { locale: es }); }
+    catch { return '—'; }
   };
-
-  const renderItem = ({ item }) => {
-    const juego      = JUEGOS[item.juego];
-    const colorAcento = juego?.colorAcento || colors.doradoAntiguo;
-    const eqGanador  = item.equipos?.[item.ganador] || '—';
-    const pGanador   = item.puntajes?.[item.ganador] ?? '—';
-    const pPerdedor  = item.puntajes?.[item.ganador === 0 ? 1 : 0] ?? '—';
-
-    return (
-      <TouchableOpacity
-        style={[styles.item, { borderLeftColor: colorAcento }]}
-        onPress={() => navigation.navigate('Detalle', { partida: item })}
-        activeOpacity={0.75}
-      >
-        <View style={[styles.itemIconWrap, {
-          backgroundColor: `${colorAcento}18`,
-          borderColor:     `${colorAcento}30`,
-        }]}>
-          <View style={[styles.itemIconDot, { backgroundColor: colorAcento }]} />
-        </View>
-        <View style={styles.itemInfo}>
-          <Text style={styles.itemJuego}>{juego?.nombre || item.juego}</Text>
-          <Text style={styles.itemEquipos}>
-            {item.equipos?.join(' vs ') || '—'}
-          </Text>
-          <Text style={styles.itemFecha}>{formatFecha(item.fecha)}</Text>
-        </View>
-        <View style={styles.itemResult}>
-          <Text style={[styles.itemScore, item.ganador === 0 ? styles.scoreWin : styles.scoreLose]}>
-            {pGanador}–{pPerdedor}
-          </Text>
-          <Text style={[styles.itemWinner, { color: colorAcento }]}>
-            {eqGanador} ★
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const ListHeader = () => (
-    <View>
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        <View style={styles.statChip}>
-          <Text style={styles.statNum}>{stats.total}</Text>
-          <Text style={styles.statLabel}>Partidas</Text>
-        </View>
-        <View style={styles.statChip}>
-          <Text style={[styles.statNum, { color: colors.rojo }]}>{stats.ganadas}</Text>
-          <Text style={styles.statLabel}>Ganadas</Text>
-        </View>
-        <View style={styles.statChip}>
-          <Text style={[styles.statNum, { color: colors.azul }]}>{stats.perdidas}</Text>
-          <Text style={styles.statLabel}>Perdidas</Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  const ListEmpty = () => (
-    <View style={styles.empty}>
-      <Text style={styles.emptyIcon}>🃏</Text>
-      <Text style={styles.emptyTitle}>Sin partidas todavía</Text>
-      <Text style={styles.emptyDesc}>
-        Las partidas que juegues aparecerán acá
-      </Text>
-    </View>
-  );
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#243d28', '#1C2B1F', '#101a12']}
-        style={StyleSheet.absoluteFill}
-      />
-
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Historial</Text>
-        <View style={{ width: 30 }} />
-      </View>
-
+    <AppBackground>
+      <ScreenHeader title="Historial" subtitle="Tus partidas" large />
       <FlatList
-        data={historial}
+        data={visible}
         keyExtractor={item => item.id}
-        renderItem={renderItem}
-        ListHeaderComponent={ListHeader}
-        ListEmptyComponent={ListEmpty}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: insets.bottom + 20 },
-        ]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={(
+          <>
+            <View style={styles.stats}>
+              <Stat value={history.length} label="Partidas" />
+              <Stat value={won} label="Ganadas" highlight />
+              <Stat value={history.length - won} label="Perdidas" />
+              <View style={styles.rate}>
+                <Text style={styles.rateValue}>{rate}%</Text>
+                <Text style={styles.rateLabel}>Victorias</Text>
+              </View>
+            </View>
+            <View style={styles.filters}>
+              <Filter label="Todos" selected={filter === 'todos'} onPress={() => setFilter('todos')} />
+              <Filter label="Truco" selected={filter === 'truco'} onPress={() => setFilter('truco')} />
+              <Filter label="Otros" selected={filter === 'otros'} onPress={() => setFilter('otros')} />
+            </View>
+          </>
+        )}
+        renderItem={({ item }) => {
+          const game = JUEGOS[item.juego];
+          const winner = item.equipos?.[item.ganador] || '—';
+          return (
+            <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('Detalle', { partida: item })}>
+              <View style={[styles.gameMark, { borderColor: game?.colorAcento || colors.oro }]}>
+                <Text style={styles.gameMarkText}>{game?.nombre?.[0] || 'J'}</Text>
+              </View>
+              <View style={styles.itemInfo}>
+                <Text style={styles.gameName}>{game?.nombre || item.juego}</Text>
+                <Text style={styles.teams}>{item.equipos?.join(' vs ')}</Text>
+                <Text style={styles.date}>{dateLabel(item.fecha)}</Text>
+              </View>
+              <View style={styles.result}>
+                <Text style={styles.resultScore}>{item.puntajes?.join(' – ')}</Text>
+                <Text style={styles.winner}>{winner} ★</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+        ListEmptyComponent={(
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>◷</Text>
+            <Text style={styles.emptyTitle}>Todavía no hay partidas</Text>
+            <Text style={styles.emptyText}>Cuando termines una partida aparecerá acá.</Text>
+          </View>
+        )}
       />
+      <BottomNav navigation={navigation} active="Historial" />
+    </AppBackground>
+  );
+}
+
+function Stat({ value, label, highlight }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={[styles.statValue, highlight && { color: colors.oroBrillo }]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
+function Filter({ label, selected, onPress }) {
+  return (
+    <TouchableOpacity style={[styles.filter, selected && styles.filterSelected]} onPress={onPress}>
+      <Text style={[styles.filterText, selected && styles.filterTextSelected]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: spacing.md, paddingBottom: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(184,150,46,0.1)', gap: spacing.sm,
-  },
-  backBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    borderWidth: 1, borderColor: 'rgba(184,150,46,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  backText:    { fontSize: 14, color: 'rgba(184,150,46,0.7)' },
-  headerTitle: { flex: 1, fontFamily: fonts.serif, fontSize: fontSize.screenTitle, color: colors.marfil, textAlign: 'center' },
-
-  listContent: { padding: spacing.lg, gap: spacing.sm },
-
-  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  statChip: {
-    flex: 1, alignItems: 'center', padding: spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    borderWidth: 1, borderColor: colors.bordeDorado,
+  content: { paddingHorizontal: 18, paddingBottom: 25, gap: 9 },
+  stats: { flexDirection: 'row', gap: 7, marginBottom: 4 },
+  stat: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
     borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.bordeDorado,
+    backgroundColor: 'rgba(2,10,7,0.44)',
   },
-  statNum:   { fontFamily: fonts.serif, fontSize: fontSize.scoreSmall, color: colors.oro, lineHeight: 28 },
-  statLabel: { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: colors.marfilTenue, letterSpacing: 0.5 },
-
+  statValue: { fontFamily: fonts.serif, fontSize: 28, color: colors.marfil },
+  statLabel: { fontFamily: fonts.sansMedium, fontSize: 8, color: colors.marfilMedio },
+  rate: {
+    width: 65,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 33,
+    borderWidth: 2,
+    borderColor: colors.oro,
+    backgroundColor: 'rgba(2,10,7,0.44)',
+  },
+  rateValue: { fontFamily: fonts.serif, fontSize: 19, color: colors.oroBrillo },
+  rateLabel: { fontFamily: fonts.sans, fontSize: 7, color: colors.marfilMedio },
+  filters: { flexDirection: 'row', gap: 7, marginBottom: 4 },
+  filter: {
+    paddingVertical: 6,
+    paddingHorizontal: 15,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.bordeDorado,
+  },
+  filterSelected: { backgroundColor: colors.oro },
+  filterText: { fontFamily: fonts.sansMedium, fontSize: 10, color: colors.marfilMedio },
+  filterTextSelected: { color: colors.tinta },
   item: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    padding: spacing.md, borderRadius: radius.md,
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    borderWidth: 1, borderColor: colors.bordeDorado,
-    borderLeftWidth: 3, marginBottom: spacing.sm,
+    minHeight: 74,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 11,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.bordeDorado,
+    backgroundColor: 'rgba(2,10,7,0.46)',
   },
-  itemIconWrap: {
-    width: 36, height: 36, borderRadius: radius.sm,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
+  gameMark: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(214,175,91,0.08)',
   },
-  itemIconDot: { width: 12, height: 12, borderRadius: 6 },
-  itemInfo:    { flex: 1 },
-  itemJuego:   { fontFamily: fonts.serif, fontSize: fontSize.body + 1, color: colors.marfil, lineHeight: 18 },
-  itemEquipos: { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: colors.marfilSuave, marginTop: 1 },
-  itemFecha:   { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: colors.marfilTenue, marginTop: 1 },
-  itemResult:  { alignItems: 'flex-end' },
-  itemScore:   { fontFamily: fonts.serif, fontSize: fontSize.body + 2, fontWeight: '700' },
-  scoreWin:    { color: colors.oro },
-  scoreLose:   { color: colors.marfilTenue },
-  itemWinner:  { fontFamily: fonts.sansBold, fontSize: fontSize.labelTiny, marginTop: 1 },
-
-  empty: {
-    alignItems: 'center', paddingTop: 60, gap: spacing.sm,
-  },
-  emptyIcon:  { fontSize: 48, marginBottom: spacing.sm },
-  emptyTitle: { fontFamily: fonts.serifItalic, fontSize: fontSize.sectionTitle, color: 'rgba(242,237,215,0.4)' },
-  emptyDesc:  { fontFamily: fonts.sans, fontSize: fontSize.bodySmall, color: colors.marfilTenue, textAlign: 'center' },
+  gameMarkText: { fontFamily: fonts.serif, fontSize: 21, color: colors.oro },
+  itemInfo: { flex: 1 },
+  gameName: { fontFamily: fonts.serif, fontSize: 19, color: colors.marfil },
+  teams: { fontFamily: fonts.sans, fontSize: 9, color: colors.marfilMedio },
+  date: { fontFamily: fonts.sans, fontSize: 8, color: colors.marfilSuave, marginTop: 2 },
+  result: { alignItems: 'flex-end' },
+  resultScore: { fontFamily: fonts.serif, fontSize: 19, color: colors.oroBrillo },
+  winner: { fontFamily: fonts.sansMedium, fontSize: 8, color: colors.oro },
+  empty: { alignItems: 'center', paddingTop: 70, gap: 8 },
+  emptyIcon: { fontSize: 44, color: colors.oro },
+  emptyTitle: { fontFamily: fonts.serif, fontSize: 24, color: colors.marfil },
+  emptyText: { fontFamily: fonts.sans, fontSize: 12, color: colors.marfilMedio },
 });

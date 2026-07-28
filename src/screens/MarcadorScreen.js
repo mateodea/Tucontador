@@ -1,61 +1,106 @@
-// ─── TUCONTADOR — Pantalla del marcador (corazón de la app) ─────────────────
-import React, { useState, useCallback } from 'react';
+// ─── TUCONTADOR — Marcador tradicional estilizado ───────────────────────────
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, Modal,
+  View, Text, TouchableOpacity, StyleSheet,
+  Alert, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useKeepAwake } from 'expo-keep-awake';
-import { usePartida } from '../hooks/usePartida';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import AppBackground from '../components/common/AppBackground';
+import Ornamento from '../components/common/Ornamento';
 import Fosforos from '../components/fosforos/Fosforos';
+import { usePartida } from '../hooks/usePartida';
 import { colors } from '../theme/colors';
-import { fonts, fontSize, spacing, radius } from '../theme/typography';
+import { fonts, spacing, radius } from '../theme/typography';
 
 export default function MarcadorScreen({ route, navigation }) {
-  useKeepAwake(); // Pantalla siempre encendida durante la partida
-
   const { juego, equipos, limite, modoConteo, ajustes } = route.params;
   const insets = useSafeAreaInsets();
-
-  const [modoActual, setModoActual] = useState(modoConteo || 'fosforos');
-  const [modalEnvido, setModalEnvido]     = useState(false);
-  const [equipoEnvido, setEquipoEnvido]   = useState(null);
-  const [modalDeshacer, setModalDeshacer] = useState(false);
+  const { height } = useWindowDimensions();
+  const [equipoSeleccionado, setEquipoSeleccionado] = useState(0);
 
   const {
-    puntajes, movimientos, terminada, ganador,
-    ultimoMovimiento, progreso,
-    sumarPuntos, deshacer, reiniciar,
+    puntajes,
+    movimientos,
+    terminada,
+    ganador,
+    ultimoMovimiento,
+    sumarPuntos,
+    deshacer,
+    reiniciar,
   } = usePartida({ juego, equipos, limite, modoConteo, ajustes });
 
-  // ── Navegar al ganador cuando termina ────────────────────────────────────
-  React.useEffect(() => {
-    if (terminada && ganador !== null) {
-      setTimeout(() => {
-        navigation.navigate('Ganador', {
-          juego, equipos, puntajes, ganador, limite, movimientos,
-        });
-      }, 600);
-    }
-  }, [terminada, ganador]);
+  const matchSize = useMemo(
+    () => Math.max(29, Math.min(42, Math.floor((height - 430) / 6))),
+    [height]
+  );
+  const usarFosforos = modoConteo !== 'numero' && (!limite || limite <= 30);
 
-  // ── Manejar botones ───────────────────────────────────────────────────────
-  const handleBoton = useCallback((equipoIdx, boton) => {
-    if (boton.tipo === 'especial' && boton.accion === 'envido') {
-      setEquipoEnvido(equipoIdx);
-      setModalEnvido(true);
+  useEffect(() => {
+    const tag = 'tucontador-partida';
+    if (ajustes?.pantallaEncendida !== false) {
+      activateKeepAwakeAsync(tag).catch(() => {});
+    }
+    return () => {
+      deactivateKeepAwake(tag).catch(() => {});
+    };
+  }, [ajustes?.pantallaEncendida]);
+
+  useEffect(() => {
+    if (terminada && ganador !== null) {
+      const timer = setTimeout(() => {
+        navigation.replace('Ganador', {
+          juego,
+          equipos,
+          puntajes,
+          ganador,
+          limite,
+          movimientos,
+          ajustes,
+          modoConteo,
+        });
+      }, 380);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [terminada, ganador, juego, equipos, puntajes, limite, movimientos, ajustes, modoConteo, navigation]);
+
+  const ajustar = (equipoIdx, valor) => {
+    const ejecutar = () => {
+      setEquipoSeleccionado(equipoIdx);
+      sumarPuntos(equipoIdx, valor, valor > 0 ? '+1 toque' : '−1 corrección');
+    };
+    if (valor > 0 && ajustes?.confirmarPuntos) {
+      Alert.alert(
+        `¿Sumar un punto a ${equipos[equipoIdx]?.nombre}?`,
+        'Confirmá para registrar el movimiento.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Sumar +1', onPress: ejecutar },
+        ]
+      );
       return;
     }
-    if (boton.valor !== 0) {
-      sumarPuntos(equipoIdx, boton.valor, boton.label);
-    }
-  }, [sumarPuntos]);
+    ejecutar();
+  };
 
-  const handleReiniciar = () => {
+  const tocarEquipo = (equipoIdx) => ajustar(equipoIdx, 1);
+
+  const confirmarSalida = () => {
+    Alert.alert(
+      '¿Salir de la partida?',
+      'La partida actual todavía no terminó.',
+      [
+        { text: 'Seguir jugando', style: 'cancel' },
+        { text: 'Salir', style: 'destructive', onPress: () => navigation.navigate('Inicio') },
+      ]
+    );
+  };
+
+  const confirmarReinicio = () => {
     Alert.alert(
       '¿Reiniciar la partida?',
-      'Se borrarán todos los puntos actuales.',
+      'Los puntos volverán a cero.',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Reiniciar', style: 'destructive', onPress: reiniciar },
@@ -63,553 +108,314 @@ export default function MarcadorScreen({ route, navigation }) {
     );
   };
 
-  const handleDeshacer = () => {
-    if (!ultimoMovimiento) return;
-    setModalDeshacer(true);
-  };
-
-  // ── Render panel de un equipo ─────────────────────────────────────────────
-  const renderPanel = (equipoIdx) => {
-    const esRojo   = equipoIdx === 0;
-    const equipo   = equipos[equipoIdx];
-    const puntaje  = puntajes[equipoIdx];
-    const colorEq  = esRojo ? 'rojo' : 'azul';
-    const colorNum = esRojo ? colors.rojo : colors.azul;
-    const progEq   = progreso[equipoIdx];
-
-    return (
-      <View key={equipoIdx} style={[
-        styles.panel,
-        esRojo ? styles.panelRojo : styles.panelAzul,
-      ]}>
-        {/* Nombre equipo */}
-        <View style={styles.panelHeader}>
-          <View style={[styles.equipoDot, { backgroundColor: esRojo ? colors.rojoProfundo : colors.azulOscuro }]} />
-          <Text style={[styles.equipoNombre, { color: esRojo ? '#C06050' : '#5090C0' }]}>
-            {equipo.nombre}
-          </Text>
-        </View>
-
-        {/* Puntaje — fósforos o número */}
-        {modoActual === 'fosforos' ? (
-          <View style={styles.fosforosContainer}>
-            <Fosforos puntos={puntaje} colorEquipo={colorEq} size={44} />
-          </View>
-        ) : null}
-
-        {/* Número total siempre visible */}
-        <View style={styles.totalRow}>
-          <Text style={[styles.totalNum, { color: colorNum }]}>{puntaje}</Text>
-          {limite && <Text style={styles.totalDe}>/{limite}</Text>}
-        </View>
-
-        {/* Barra de progreso */}
-        {limite && (
-          <View style={styles.barraTrack}>
-            <View style={[
-              styles.barraFill,
-              { width: `${progEq * 100}%`, backgroundColor: colorNum },
-            ]} />
-          </View>
-        )}
-      </View>
-    );
-  };
-
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#243d28', '#1C2B1F', '#101a12']}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* HEADER */}
+    <AppBackground framed>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.hdrBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.hdrBtnText}>←</Text>
+        <TouchableOpacity style={styles.circle} onPress={confirmarSalida}>
+          <Text style={styles.circleText}>‹</Text>
         </TouchableOpacity>
-
-        <View style={styles.hdrTituloWrap}>
-          <Text style={styles.hdrTitulo}>{juego.nombre}
-            {juego.subtitulo ? ` · ${juego.subtitulo}` : ''}
+        <View style={styles.headerCenter}>
+          <Text style={styles.brand}>Tucontador</Text>
+          <Text style={styles.title}>
+            {juego.id.startsWith('truco') ? 'Truco' : juego.nombre}
+            {limite ? ` · a ${limite}` : ''}
           </Text>
-          <Text style={styles.hdrSub}>
-            {equipos.map(e => e.nombre).join(' vs ')}
-            {limite ? ` · hasta ${limite} pts` : ''}
-          </Text>
+          <Ornamento width={145} compact />
         </View>
-
-        <TouchableOpacity style={styles.hdrBtn} onPress={handleReiniciar}>
-          <Text style={styles.hdrBtnText}>↺</Text>
+        <TouchableOpacity style={styles.circle} onPress={confirmarReinicio}>
+          <Text style={styles.restart}>↻</Text>
         </TouchableOpacity>
       </View>
 
-      {/* SELECTOR MODO si aplica */}
-      {juego.modoConteo === 'ambos' && (
-        <View style={styles.modoWrap}>
-          {['fosforos', 'numero'].map(modo => (
+      <View style={styles.board}>
+        {equipos.slice(0, 2).map((equipo, index) => {
+          const red = index === 0;
+          const selected = equipoSeleccionado === index;
+          return (
             <TouchableOpacity
-              key={modo}
-              style={[styles.modoBtn, modoActual === modo && styles.modoBtnSel]}
-              onPress={() => setModoActual(modo)}
+              key={`${equipo.nombre}-${index}`}
+              style={[
+                styles.team,
+                index === 0 && styles.teamDivider,
+                selected && (red ? styles.selectedRed : styles.selectedBlue),
+              ]}
+              onPress={() => tocarEquipo(index)}
+              activeOpacity={0.9}
             >
-              <Text style={[styles.modoBtnText, modoActual === modo && styles.modoBtnTextSel]}>
-                {modo === 'fosforos' ? 'Fósforos' : 'Número'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* TABLERO */}
-      <View style={styles.tablero}>
-        {renderPanel(0)}
-        <View style={styles.separador} />
-        {renderPanel(1)}
-      </View>
-
-      {/* BOTONES DE PUNTOS */}
-      <View style={[styles.botonesWrap, { paddingBottom: insets.bottom + 8 }]}>
-        <View style={styles.botonesGrid}>
-          {juego.botones
-            .filter(b => b.tipo !== 'restar')
-            .map((boton, i) => (
-              <View key={i} style={styles.botonFila}>
-                <TouchableOpacity
-                  style={[styles.btnPunto, styles.btnRojo]}
-                  onPress={() => handleBoton(0, boton)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.btnPuntoText, { color: colors.rojo }]}>{boton.label}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.btnPunto, styles.btnAzul]}
-                  onPress={() => handleBoton(1, boton)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.btnPuntoText, { color: colors.azul }]}>{boton.label}</Text>
-                </TouchableOpacity>
+              <View style={[styles.teamHeader, red ? styles.redHeader : styles.blueHeader]}>
+                <Text style={styles.teamName} numberOfLines={1}>{equipo.nombre}</Text>
+                <Text style={styles.score}>{puntajes[index]}</Text>
               </View>
-            ))}
-        </View>
 
-        {/* Botón deshacer */}
-        {ultimoMovimiento && (
-          <TouchableOpacity style={styles.btnDeshacer} onPress={handleDeshacer}>
-            <Text style={styles.btnDeshacerText}>
-              ↩ Deshacer: {equipos[ultimoMovimiento.equipo]?.nombre} {ultimoMovimiento.descripcion}
-            </Text>
-          </TouchableOpacity>
-        )}
+              <View style={styles.matches}>
+                {usarFosforos ? (
+                  <Fosforos puntos={puntajes[index]} size={matchSize} />
+                ) : (
+                  <View style={styles.numericMode}>
+                    <Text style={styles.numericScore}>{puntajes[index]}</Text>
+                    <Text style={styles.numericHint}>
+                      Conteo numérico{limite ? ` · de ${limite}` : ''}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.tapHint}>
+                <Text style={[styles.tapPlus, { color: red ? colors.rojo : colors.azul }]}>+1</Text>
+                <Text style={styles.tapText}>Tocá este lado</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      {/* MODAL ENVIDO */}
-      <Modal visible={modalEnvido} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>
-              ¿Cuántos puntos de Envido?
-            </Text>
-            {juego.envido?.map((opt, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.envidoOpt}
-                onPress={() => {
-                  if (opt.tipo === 'falta' && equipoEnvido !== null) {
-                    // Falta envido = lo que le falta al rival para ganar
-                    const rivalIdx = equipoEnvido === 0 ? 1 : 0;
-                    const valorFalta = limite - puntajes[rivalIdx];
-                    sumarPuntos(equipoEnvido, valorFalta, 'Falta Envido');
-                  } else if (opt.valor > 0 && equipoEnvido !== null) {
-                    sumarPuntos(equipoEnvido, opt.valor, opt.label);
-                  }
-                  setModalEnvido(false);
-                }}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.envidoOptText}>{opt.label}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.envidoCancelar} onPress={() => setModalEnvido(false)}>
-              <Text style={styles.envidoCancelarText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
+      <View style={[styles.controls, { paddingBottom: Math.max(insets.bottom, 8) + 4 }]}>
+        <View style={styles.selectedRow}>
+          <View style={[
+            styles.selectedDot,
+            { backgroundColor: equipoSeleccionado === 0 ? colors.rojo : colors.azul },
+          ]} />
+          <Text style={styles.selectedText}>
+            Equipo seleccionado: <Text style={styles.selectedName}>{equipos[equipoSeleccionado]?.nombre}</Text>
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.undo,
+              (!ultimoMovimiento || ajustes?.permitirDeshacer === false) && styles.disabled,
+            ]}
+            onPress={deshacer}
+            disabled={!ultimoMovimiento || ajustes?.permitirDeshacer === false}
+          >
+            <Text style={styles.undoText}>↶</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
 
-      {/* MODAL DESHACER */}
-      <Modal visible={modalDeshacer} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.dialogWrap}>
-            <Text style={styles.dialogTitle}>¿Deshacer el último punto?</Text>
-            {ultimoMovimiento && (
-              <Text style={styles.dialogSub}>
-                Se borrará: {equipos[ultimoMovimiento.equipo]?.nombre} · {ultimoMovimiento.descripcion}
-              </Text>
-            )}
-            <View style={styles.dialogBtnRow}>
-              <TouchableOpacity
-                style={styles.dialogBtnCancel}
-                onPress={() => setModalDeshacer(false)}
-              >
-                <Text style={styles.dialogBtnCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.dialogBtnConfirm}
-                onPress={() => { deshacer(); setModalDeshacer(false); }}
-              >
-                <Text style={styles.dialogBtnConfirmText}>Sí, deshacer</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={styles.adjustRow}>
+          <TouchableOpacity
+            style={[styles.adjustButton, styles.minusButton]}
+            onPress={() => ajustar(equipoSeleccionado, -1)}
+          >
+            <Text style={styles.adjustText}>−1</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.adjustButton, styles.plusButton]}
+            onPress={() => ajustar(equipoSeleccionado, 1)}
+          >
+            <Text style={styles.adjustText}>+1</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </View>
+      </View>
+    </AppBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  // ─── Contenedor ──────────────────────────────────────────────────────────
-  container: {
-    flex: 1,
-    backgroundColor: colors.fondoAzul,
-  },
-
-  // ─── Header ──────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.bordeDorado,
-    backgroundColor: 'rgba(13,21,32,0.95)',
+    paddingHorizontal: 18,
+    paddingBottom: 7,
   },
-  hdrBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.fondoCard,
-    borderWidth: 1,
-    borderColor: colors.bordeSuave,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hdrBtnText: {
-    fontSize: 18,
-    color: colors.marfil,
-  },
-  hdrTituloWrap: {
+  headerCenter: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
   },
-  hdrTitulo: {
-    fontFamily: fonts.serif,
-    fontSize: fontSize.screenTitle,
+  brand: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 14,
     color: colors.oro,
-    textAlign: 'center',
-    lineHeight: 22,
+    letterSpacing: 0.7,
   },
-  hdrSub: {
-    fontFamily: fonts.sans,
-    fontSize: 10,
-    color: colors.marfilTenue,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-    marginTop: 1,
-  },
-  hdrActions: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  hdrActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.fondoCard,
-    borderWidth: 1,
-    borderColor: colors.bordeSuave,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hdrActionText: {
-    fontSize: 15,
-    color: colors.marfilMedio,
-  },
-
-  // ─── Toggle modo ────────────────────────────────────────────────────────
-  modoWrap: {
-    flexDirection: 'row',
-    alignSelf: 'center',
-    marginVertical: spacing.xs,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: radius.full,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: colors.bordeSuave,
-  },
-  modoBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radius.full,
-  },
-  modoBtnSel: {
-    backgroundColor: colors.fondoAzul,
-    borderWidth: 1,
-    borderColor: colors.bordeDorado,
-  },
-  modoBtnText: {
-    fontFamily: fonts.sansSemibold,
-    fontSize: fontSize.label,
-    color: colors.marfilTenue,
-  },
-  modoBtnTextSel: { color: colors.oro },
-
-  // ─── Tablero ─────────────────────────────────────────────────────────────
-  tablero: { flexDirection: 'row', flex: 1 },
-  separador: { width: 1, backgroundColor: colors.bordeDorado },
-
-  panel: {
-    flex: 1,
-    alignItems: 'center',
-    padding: spacing.sm,
-    paddingTop: spacing.md,
-  },
-  panelRojo: { backgroundColor: '#130708' },
-  panelAzul: { backgroundColor: '#07090f' },
-
-  panelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: spacing.sm,
-  },
-  equipoDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  equipoNombre: {
-    fontFamily: fonts.sansMedium,
-    fontSize: fontSize.body,
-    color: colors.marfil,
-    flexShrink: 1,
-  },
-  fosforosContainer: {
-    flex: 1,
-    width: '100%',
-    paddingHorizontal: spacing.xs,
-  },
-
-  // Número total
-  totalRow: {
-    alignItems: 'center',
-    marginVertical: spacing.xs,
-  },
-  totalNum: {
+  title: {
     fontFamily: fonts.serif,
-    fontSize: fontSize.scoreHuge,
-    lineHeight: fontSize.scoreHuge * 1.05,
+    fontSize: 36,
+    lineHeight: 39,
+    color: colors.oroBrillo,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
-  totalDe: {
-    fontFamily: fonts.sans,
-    fontSize: fontSize.bodySmall,
-    color: colors.marfilTenue,
-    marginTop: 2,
-  },
-
-  // Barra de progreso
-  barraTrack: {
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 2,
-    width: '80%',
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-  },
-  barraFill: { height: '100%', borderRadius: 2 },
-
-  // ─── Botones ─────────────────────────────────────────────────────────────
-  botonesWrap: {
-    borderTopWidth: 1,
-    borderTopColor: colors.bordeDorado,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  botonesGrid: { gap: 6 },
-  botonFila:   { flexDirection: 'row', gap: 6 },
-  btnPunto: {
-    flex: 1,
-    paddingVertical: 11,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  btnRojo:  { backgroundColor: colors.rojoBtn, borderColor: colors.rojoBorde },
-  btnAzul:  { backgroundColor: colors.azulBtn, borderColor: colors.azulBorde },
-  btnPuntoText: {
-    fontFamily: fonts.sansSemibold,
-    fontSize: fontSize.buttonMedium,
-    letterSpacing: 0.3,
-  },
-
-  // Deshacer
-  btnDeshacer: {
-    paddingVertical: spacing.sm,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.xs,
-    alignItems: 'center',
-    borderRadius: radius.md,
+  circle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 1,
     borderColor: colors.bordeDoradoMedio,
-    backgroundColor: 'rgba(184,150,46,0.06)',
+    backgroundColor: 'rgba(2,10,7,0.46)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  btnDeshacerText: {
+  circleText: {
+    fontFamily: fonts.serifRegular,
+    fontSize: 34,
+    lineHeight: 34,
+    color: colors.oro,
+  },
+  restart: {
+    fontSize: 22,
+    color: colors.oro,
+  },
+  board: {
+    flex: 1,
+    flexDirection: 'row',
+    marginHorizontal: 18,
+    borderWidth: 1,
+    borderColor: colors.bordeDoradoMedio,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(4,26,15,0.58)',
+  },
+  team: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  teamDivider: {
+    borderRightWidth: 1,
+    borderRightColor: colors.bordeDoradoMedio,
+  },
+  selectedRed: {
+    backgroundColor: 'rgba(139,58,42,0.08)',
+  },
+  selectedBlue: {
+    backgroundColor: 'rgba(42,80,128,0.09)',
+  },
+  teamHeader: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.bordeDoradoMedio,
+  },
+  redHeader: {
+    backgroundColor: 'rgba(92,23,18,0.84)',
+  },
+  blueHeader: {
+    backgroundColor: 'rgba(11,42,61,0.9)',
+  },
+  teamName: {
+    maxWidth: '92%',
+    fontFamily: fonts.serif,
+    fontSize: 21,
+    lineHeight: 23,
+    color: colors.marfil,
+  },
+  score: {
+    fontFamily: fonts.serif,
+    fontSize: 42,
+    lineHeight: 44,
+    color: colors.marfil,
+  },
+  matches: {
+    flex: 1,
+    width: '78%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+  },
+  numericMode: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  numericScore: {
+    fontFamily: fonts.serif,
+    fontSize: 80,
+    color: colors.oro,
+  },
+  numericHint: {
     fontFamily: fonts.sans,
-    fontSize: fontSize.bodySmall,
     color: colors.marfilMedio,
-    letterSpacing: 0.2,
-  },
-
-  // Ajustes button
-  ajustesText: {
-    fontFamily: fonts.sans,
     fontSize: 10,
-    color: 'rgba(242,237,215,0.4)',
-    letterSpacing: 1.5,
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
-
-  // ─── Modales ─────────────────────────────────────────────────────────────
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: spacing.md,
+  tapHint: {
+    alignItems: 'center',
+    paddingBottom: 5,
   },
-  modalSheet: {
-    backgroundColor: '#141820',
+  tapPlus: {
+    fontFamily: fonts.serif,
+    fontSize: 18,
+    lineHeight: 18,
+  },
+  tapText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 9,
+    color: colors.marfilMedio,
+    letterSpacing: 0.4,
+  },
+  controls: {
+    marginHorizontal: 18,
+    marginTop: 8,
+    padding: 9,
     borderWidth: 1,
     borderColor: colors.bordeDoradoMedio,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(4,17,27,0.93)',
   },
-  modalHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.bordeMedio,
-    alignSelf: 'center',
-    marginBottom: spacing.md,
+  selectedRow: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
-  modalTitle: {
-    fontFamily: fonts.serif,
-    fontSize: fontSize.sectionTitle,
+  selectedDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  selectedText: {
+    fontFamily: fonts.sans,
+    fontSize: 11,
+    color: colors.marfilMedio,
+  },
+  selectedName: {
+    fontFamily: fonts.sansSemibold,
     color: colors.marfil,
-    textAlign: 'center',
-    marginBottom: spacing.md,
   },
-  envidoOpt: {
-    paddingVertical: 12,
-    borderRadius: radius.md,
-    marginBottom: 6,
-    backgroundColor: 'rgba(139,58,42,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(139,58,42,0.3)',
-  },
-  envidoOptText: {
-    fontFamily: fonts.sansSemibold,
-    fontSize: fontSize.body,
-    color: colors.rojo,
-    textAlign: 'center',
-  },
-  envidoCancelar: { marginTop: 4, padding: 10, alignItems: 'center' },
-  envidoCancelarText: {
-    fontFamily: fonts.sans,
-    fontSize: fontSize.bodySmall,
-    color: colors.marfilTenue,
-  },
-
-  dialogWrap: {
-    backgroundColor: '#141820',
-    margin: spacing.xl,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
+  undo: {
+    position: 'absolute',
+    right: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 1,
     borderColor: colors.bordeDoradoMedio,
-    alignSelf: 'center',
-    width: '88%',
-  },
-  dialogTitle: {
-    fontFamily: fonts.serif,
-    fontSize: fontSize.screenTitle,
-    color: colors.oro,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  dialogSub: {
-    fontFamily: fonts.sans,
-    fontSize: fontSize.body,
-    color: colors.marfilMedio,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  dialogBtnRow: { flexDirection: 'row', gap: 8 },
-  dialogBtnCancel: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.bordeSuave,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  dialogBtnCancelText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: fontSize.body,
-    color: colors.marfilMedio,
+  undoText: {
+    fontSize: 20,
+    color: colors.oro,
   },
-  dialogBtnConfirm: {
+  disabled: {
+    opacity: 0.28,
+  },
+  adjustRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  adjustButton: {
     flex: 1,
-    paddingVertical: 12,
+    height: 52,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(192,104,88,0.2)',
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  minusButton: {
+    backgroundColor: 'rgba(92,23,18,0.88)',
     borderColor: colors.rojoBorde,
-    alignItems: 'center',
   },
-  dialogBtnConfirmText: {
-    fontFamily: fonts.sansSemibold,
-    fontSize: fontSize.body,
-    color: colors.rojo,
+  plusButton: {
+    backgroundColor: 'rgba(11,42,61,0.92)',
+    borderColor: colors.azulBorde,
   },
-
-  btnNueva: {
-    borderRadius: radius.md,
-    paddingVertical: 11,
-    alignItems: 'center',
-    backgroundColor: 'rgba(184,150,46,0.1)',
-    borderWidth: 1,
-    borderColor: colors.bordeDorado,
-  },
-  btnNuevaText: {
-    fontFamily: fonts.sansSemibold,
-    fontSize: fontSize.body,
-    color: colors.oro,
-  },
-  btnMenu: {
-    borderRadius: radius.md,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderWidth: 1,
-    borderColor: colors.bordeSuave,
-  },
-  btnMenuText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: fontSize.body,
-    color: colors.marfilTenue,
+  adjustText: {
+    fontFamily: fonts.serif,
+    fontSize: 31,
+    color: colors.marfil,
   },
 });

@@ -14,10 +14,7 @@ export default function DetalleScreen({ route, navigation }) {
   const insets      = useSafeAreaInsets();
   const juego       = JUEGOS[partida.juego];
 
-  const ganadorNombre  = partida.equipos?.[partida.ganador]      || '—';
-  const puntajeWin     = partida.puntajes?.[partida.ganador]     ?? 0;
-  const puntajeLose    = partida.puntajes?.[partida.ganador === 0 ? 1 : 0] ?? 0;
-  const perdedorNombre = partida.equipos?.[partida.ganador === 0 ? 1 : 0] || '—';
+  const ganadorNombre = partida.equipos?.[partida.ganador] || '—';
 
   const formatFecha = (iso) => {
     try { return format(new Date(iso), "d 'de' MMMM yyyy 'a las' HH:mm", { locale: es }); }
@@ -46,7 +43,7 @@ export default function DetalleScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#243d28', '#1C2B1F', '#101a12']}
+        colors={[colors.panoClaro, colors.fondoPrincipal, colors.fondoProfundo]}
         style={StyleSheet.absoluteFill}
       />
 
@@ -74,20 +71,31 @@ export default function DetalleScreen({ route, navigation }) {
             <View style={styles.resultadoCard}>
               <Text style={styles.ganadorLabel}>Ganadores</Text>
               <Text style={styles.ganadorNombre}>{ganadorNombre}</Text>
-              <View style={styles.scoresRow}>
-                <View style={styles.teamBlock}>
-                  <Text style={styles.teamName}>{partida.equipos?.[0]}</Text>
-                  <Text style={[styles.teamScore, { color: colors.rojo }]}>
-                    {partida.puntajes?.[0]}
-                  </Text>
-                </View>
-                <Text style={styles.vsText}>vs</Text>
-                <View style={[styles.teamBlock, { alignItems: 'flex-end' }]}>
-                  <Text style={styles.teamName}>{partida.equipos?.[1]}</Text>
-                  <Text style={[styles.teamScore, { color: colors.azul }]}>
-                    {partida.puntajes?.[1]}
-                  </Text>
-                </View>
+              <View style={styles.scoresList}>
+                {(partida.equipos || []).map((equipo, index) => {
+                  const esGanador = index === partida.ganador;
+                  return (
+                    <View key={`${equipo}-${index}`} style={styles.scoreItem}>
+                      <View style={[
+                        styles.position,
+                        esGanador && styles.positionWinner,
+                      ]}>
+                        <Text style={[
+                          styles.positionText,
+                          esGanador && styles.positionWinnerText,
+                        ]}>
+                          {esGanador ? '★' : index + 1}
+                        </Text>
+                      </View>
+                      <Text style={[styles.teamName, esGanador && styles.teamNameWinner]} numberOfLines={1}>
+                        {equipo || `Jugador ${index + 1}`}
+                      </Text>
+                      <Text style={[styles.teamScore, esGanador && styles.teamScoreWinner]}>
+                        {partida.puntajes?.[index] ?? 0}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
 
@@ -136,7 +144,7 @@ const styles = StyleSheet.create({
   },
   backText:   { fontSize: 14, color: 'rgba(184,150,46,0.7)' },
   hdrTexto:   { flex: 1 },
-  headerTitle: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.marfil, textAlign: 'center' },
+  headerTitle: { fontFamily: fonts.serif, fontSize: fontSize.screenTitle, lineHeight: 29, color: colors.marfil, textAlign: 'center' },
   headerSub:  { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: 'rgba(184,150,46,0.45)', textAlign: 'center', marginTop: 1 },
 
   content: { padding: spacing.lg },
@@ -157,14 +165,37 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serifItalic, fontSize: fontSize.gameTitle,
     color: colors.oro, lineHeight: 32,
   },
-  scoresRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginTop: spacing.sm,
+  scoresList: { marginTop: spacing.sm },
+  scoreItem: {
+    minHeight: 45,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
   },
-  teamBlock:  { flex: 1 },
-  teamName:   { fontFamily: fonts.sansMedium, fontSize: fontSize.label, color: colors.marfilSuave, textTransform: 'uppercase', letterSpacing: 1 },
-  teamScore:  { fontFamily: fonts.serif, fontSize: fontSize.scoreMedium, fontWeight: '700', lineHeight: 36 },
-  vsText:     { fontFamily: fonts.serifItalic, fontSize: fontSize.bodySmall, color: 'rgba(255,255,255,0.2)', marginHorizontal: spacing.sm },
+  position: {
+    width: 23,
+    height: 23,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  positionWinner: { backgroundColor: colors.oro },
+  positionText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.marfilMedio },
+  positionWinnerText: { color: colors.tinta },
+  teamName: {
+    flex: 1,
+    fontFamily: fonts.sansMedium,
+    fontSize: fontSize.label,
+    color: colors.marfilSuave,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  teamNameWinner: { color: colors.marfil },
+  teamScore: { fontFamily: fonts.serif, fontSize: 28, color: colors.marfilMedio },
+  teamScoreWinner: { color: colors.oro },
 
   infoRow:    { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
   infoChip: {

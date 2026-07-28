@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { JUEGOS } from '../data/juegos';
+import { guardarPartida } from '../utils/storage';
 import { colors } from '../theme/colors';
 import { fonts, fontSize, spacing, radius } from '../theme/typography';
 
@@ -32,38 +33,45 @@ export default function MarcadorGenerala({ route, navigation }) {
   );
 
   // Verificar si todas las casillas están llenas
-  const todasLlenas = casillas.every(c =>
-    Object.values(c).every(v => v !== null)
-  );
-
-  const coloresEquipo = equipos.map((_, i) => i === 0 ? colors.rojo : colors.azul);
-  const coloresBorde  = ['rgba(139,58,42,0.3)', 'rgba(42,80,128,0.3)'];
+  const paleta = [colors.rojo, colors.azul, '#5AB87A', colors.oro];
+  const coloresEquipo = equipos.map((_, i) => paleta[i % paleta.length]);
+  const coloresBorde = coloresEquipo.map(color => `${color}55`);
 
   // ── Registrar una casilla ─────────────────────────────────────────────────
-  const registrarCasilla = (casId, equipoIdx, servida) => {
+  const registrarCasilla = (casId, equipoIdx, valor) => {
     if (ajustes?.vibracion) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const casConfig = juego.casillas.find(c => c.id === casId);
     if (!casConfig) return;
 
-    const valor = servida ? casConfig.puntosServida : casConfig.puntos;
-
     setCasillas(prev => {
       const nuevas = prev.map((c, i) => i === equipoIdx
-        ? { ...c, [casId]: (c[casId] || 0) + valor }
+        ? { ...c, [casId]: valor }
         : c
       );
+      const completas = nuevas.every(c => Object.values(c).every(v => v !== null));
+      if (completas) {
+        const nuevosTotales = nuevas.map(c =>
+          Object.values(c).reduce((sum, current) => sum + (current || 0), 0)
+        );
+        const winner = nuevosTotales.indexOf(Math.max(...nuevosTotales));
+        setGanadorIdx(winner);
+        if (ajustes?.guardarHistorial) {
+          guardarPartida({
+            juego: juego.id,
+            equipos: equipos.map(team => team.nombre),
+            puntajes: nuevosTotales,
+            ganador: winner,
+            limite: null,
+            movimientos: [],
+          });
+        }
+        setTimeout(() => setModalGanador(true), 400);
+      }
       return nuevas;
     });
 
     setModalCasilla(null);
-
-    // Verificar fin del juego
-    if (todasLlenas) {
-      const ganador = totales.indexOf(Math.max(...totales));
-      setGanadorIdx(ganador);
-      setTimeout(() => setModalGanador(true), 400);
-    }
   };
 
   const getCasillaColor = (valor) => {
@@ -75,7 +83,7 @@ export default function MarcadorGenerala({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#243d28', '#1C2B1F', '#101a12']} style={StyleSheet.absoluteFill}/>
+      <LinearGradient colors={[colors.panoClaro, colors.fondoPrincipal, colors.fondoProfundo]} style={StyleSheet.absoluteFill}/>
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -126,7 +134,9 @@ export default function MarcadorGenerala({ route, navigation }) {
             <View style={styles.casCol}>
               <Text style={styles.casNombre}>{cas.label}</Text>
               <Text style={styles.casPuntos}>
-                {cas.puntos} pts{cas.puntosServida !== cas.puntos ? ` / ${cas.puntosServida} servida` : ''}
+                {cas.tipo === 'numero'
+                  ? `0 a ${cas.numero * 5} pts`
+                  : `${cas.puntos} pts${cas.puntosServida !== cas.puntos ? ` / ${cas.puntosServida} servida` : ''}`}
               </Text>
             </View>
             {equipos.map((eq, i) => {
@@ -179,23 +189,52 @@ export default function MarcadorGenerala({ route, navigation }) {
             <Text style={styles.modalTitulo}>
               {modalCasilla?.cas?.label} — {modalCasilla !== null ? equipos[modalCasilla.equipoIdx]?.nombre : ''}
             </Text>
-            <Text style={styles.modalDesc}>¿Fue servida o de arriba?</Text>
+            <Text style={styles.modalDesc}>
+              {modalCasilla?.cas?.tipo === 'numero' ? '¿Cuántos dados suman?' : 'Elegí el resultado'}
+            </Text>
 
-            <TouchableOpacity
-              style={styles.modalOpt}
-              onPress={() => registrarCasilla(modalCasilla.casId, modalCasilla.equipoIdx, false)}
-            >
-              <Text style={styles.modalOptLabel}>De arriba</Text>
-              <Text style={styles.modalOptPts}>+{modalCasilla?.cas?.puntos} pts</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.modalOpt, styles.modalOptDestacado]}
-              onPress={() => registrarCasilla(modalCasilla.casId, modalCasilla.equipoIdx, true)}
-            >
-              <Text style={[styles.modalOptLabel, { color: colors.oro }]}>Servida</Text>
-              <Text style={[styles.modalOptPts, { color: colors.oro }]}>+{modalCasilla?.cas?.puntosServida} pts</Text>
-            </TouchableOpacity>
+            {modalCasilla?.cas?.tipo === 'numero' ? (
+              <View style={styles.numberGrid}>
+                {[0, 1, 2, 3, 4, 5].map(cantidad => (
+                  <TouchableOpacity
+                    key={cantidad}
+                    style={styles.numberOption}
+                    onPress={() => registrarCasilla(
+                      modalCasilla.casId,
+                      modalCasilla.equipoIdx,
+                      cantidad * modalCasilla.cas.numero
+                    )}
+                  >
+                    <Text style={styles.numberCount}>{cantidad}</Text>
+                    <Text style={styles.numberPoints}>{cantidad * modalCasilla.cas.numero} pts</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.modalOpt}
+                  onPress={() => registrarCasilla(modalCasilla.casId, modalCasilla.equipoIdx, 0)}
+                >
+                  <Text style={styles.modalOptLabel}>Tachar</Text>
+                  <Text style={styles.modalOptPts}>0 pts</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalOpt}
+                  onPress={() => registrarCasilla(modalCasilla.casId, modalCasilla.equipoIdx, modalCasilla.cas.puntos)}
+                >
+                  <Text style={styles.modalOptLabel}>De arriba</Text>
+                  <Text style={styles.modalOptPts}>+{modalCasilla?.cas?.puntos} pts</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalOpt, styles.modalOptDestacado]}
+                  onPress={() => registrarCasilla(modalCasilla.casId, modalCasilla.equipoIdx, modalCasilla.cas.puntosServida)}
+                >
+                  <Text style={[styles.modalOptLabel, { color: colors.oro }]}>Servida</Text>
+                  <Text style={[styles.modalOptPts, { color: colors.oro }]}>+{modalCasilla?.cas?.puntosServida} pts</Text>
+                </TouchableOpacity>
+              </>
+            )}
 
             <TouchableOpacity
               style={styles.modalCancelar}
@@ -238,7 +277,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.28)', borderWidth: 1, borderColor: 'rgba(184,150,46,0.2)', alignItems: 'center', justifyContent: 'center' },
   backText: { fontSize: 14, color: 'rgba(184,150,46,0.7)' },
   hdrTexto: { flex: 1 },
-  hdrTitulo: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.marfil, textAlign: 'center' },
+  hdrTitulo: { fontFamily: fonts.serif, fontSize: fontSize.screenTitle, lineHeight: 29, color: colors.marfil, textAlign: 'center' },
   hdrSub: { fontFamily: fonts.sans, fontSize: fontSize.labelTiny, color: 'rgba(184,150,46,0.5)', textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase', marginTop: 1 },
 
   totalesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: 'rgba(184,150,46,0.08)' },
@@ -278,6 +317,10 @@ const styles = StyleSheet.create({
   modalOptPts: { fontFamily: fonts.serif, fontSize: fontSize.body + 2, color: colors.marfilSuave, fontWeight: '700' },
   modalCancelar: { paddingVertical: 10, alignItems: 'center' },
   modalCancelarText: { fontFamily: fonts.sansMedium, fontSize: fontSize.bodySmall, color: colors.marfilTenue },
+  numberGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  numberOption: { width: '31%', minHeight: 58, borderRadius: radius.md, borderWidth: 1, borderColor: colors.bordeDoradoMedio, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center' },
+  numberCount: { fontFamily: fonts.serif, fontSize: 22, color: colors.marfil },
+  numberPoints: { fontFamily: fonts.sansMedium, fontSize: 8, color: colors.oro },
 
   ganadorCard: { backgroundColor: '#162018', borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.bordeDoradoMedio, width: '100%' },
   ganadorEstrella: { fontSize: 52, color: colors.oro },

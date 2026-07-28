@@ -16,20 +16,12 @@ import GanadorScreen        from '../screens/GanadorScreen';
 import HistorialScreen      from '../screens/HistorialScreen';
 import DetalleScreen        from '../screens/DetalleScreen';
 import AjustesScreen        from '../screens/AjustesScreen';
+import PartidaRapidaScreen  from '../screens/PartidaRapidaScreen';
+import ReglasScreen         from '../screens/ReglasScreen';
+import TorneoScreen         from '../screens/TorneoScreen';
+export { getMarcadorPorJuego } from './routes';
 
 const Stack = createNativeStackNavigator();
-
-export function getMarcadorPorJuego(juegoId) {
-  switch (juegoId) {
-    case 'chinchon':     return 'MarcadorChinchon';
-    case 'escoba':       return 'MarcadorEscoba';
-    case 'generala':     return 'MarcadorGenerala';
-    case 'rummy':
-    case 'canasta':
-    case 'tute':         return 'MarcadorMultijugador';
-    default:             return 'Marcador';
-  }
-}
 
 export default function AppNavigator() {
   return (
@@ -51,6 +43,9 @@ export default function AppNavigator() {
         <Stack.Screen name="Historial"             component={HistorialScreen}         options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Detalle"               component={DetalleScreen}           options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Ajustes"               component={AjustesScreen}           options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="PartidaRapida"          component={PartidaRapidaScreen}     options={{ animation: 'fade' }} />
+        <Stack.Screen name="Reglas"                 component={ReglasScreen}            options={{ animation: 'fade' }} />
+        <Stack.Screen name="Torneo"                 component={TorneoScreen}            options={{ animation: 'fade' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

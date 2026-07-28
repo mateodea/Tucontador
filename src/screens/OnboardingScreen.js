@@ -1,198 +1,139 @@
-// ─── TUCONTADOR — Onboarding (primera vez) ──────────────────────────────────
-import React, { useState, useRef } from 'react';
-import {
-  View, Text, TouchableOpacity,
-  StyleSheet, Animated, Dimensions,
-} from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import AppBackground from '../components/common/AppBackground';
+import BrandTitle from '../components/common/BrandTitle';
+import Ornamento from '../components/common/Ornamento';
+import { GrupoFosforos } from '../components/fosforos/Fosforos';
 import { marcarOnboardingVisto } from '../utils/storage';
 import { colors } from '../theme/colors';
-import { fonts, fontSize, spacing, radius } from '../theme/typography';
+import { fonts, spacing, radius } from '../theme/typography';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const PASOS = [
   {
-    titulo:    'Bienvenido a',
-    tituloAcc: 'Tucontador',
-    desc:      'El contador de puntos para tus juegos de cartas favoritos. Simple, rápido y hecho en Argentina.',
-    icono:     '🃏',
+    title: 'Contá sin cortar el juego',
+    description: 'Una experiencia rápida y elegante para llevar los puntos sin perder de vista la mesa.',
+    symbol: 'cards',
   },
   {
-    titulo:    'Conteo con',
-    tituloAcc: 'fósforos',
-    desc:      'Igual que en la mesa. Cada punto es un palito y al llegar a 5 forman un cuadrado con diagonal — como siempre lo hiciste en papel.',
-    icono:     '🔥',
+    title: 'Como se contó siempre',
+    description: 'Los fósforos forman grupos de cinco y separan claramente las malas de las buenas.',
+    symbol: 'matches',
   },
   {
-    titulo:    '¡Todo listo',
-    tituloAcc: 'para jugar!',
-    desc:      'Truco, Chinchón, Escoba del 15, Rummy, Canasta, Generala y más. Funciona sin internet. ¡Que gane el mejor!',
-    icono:     '🏆',
+    title: 'Todos tus juegos',
+    description: 'Truco, Chinchón, Escoba, Generala, Rummy y más, incluso sin conexión.',
+    symbol: 'games',
   },
 ];
 
 export default function OnboardingScreen({ navigation }) {
-  const insets    = useSafeAreaInsets();
-  const [paso, setPaso] = useState(0);
-  const slideX    = useRef(new Animated.Value(0)).current;
-
-  const irA = (nuevoPaso) => {
-    const direccion = nuevoPaso > paso ? -SCREEN_WIDTH : SCREEN_WIDTH;
-
-    // Salida
-    Animated.timing(slideX, {
-      toValue:         direccion,
-      duration:        200,
-      useNativeDriver: true,
-    }).start(() => {
-      setPaso(nuevoPaso);
-      slideX.setValue(-direccion);
-      // Entrada
-      Animated.timing(slideX, {
-        toValue:         0,
-        duration:        220,
-        useNativeDriver: true,
-      }).start();
-    });
-  };
+  const insets = useSafeAreaInsets();
+  const [step, setStep] = useState(0);
+  const slide = useRef(new Animated.Value(0)).current;
 
   const terminar = async () => {
     await marcarOnboardingVisto();
     navigation.replace('Inicio');
   };
 
-  const esUltimo = paso === PASOS.length - 1;
-  const current  = PASOS[paso];
+  const siguiente = () => {
+    if (step === PASOS.length - 1) {
+      terminar();
+      return;
+    }
+    Animated.timing(slide, { toValue: -SCREEN_WIDTH, duration: 180, useNativeDriver: true }).start(() => {
+      setStep(value => value + 1);
+      slide.setValue(SCREEN_WIDTH);
+      Animated.timing(slide, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+    });
+  };
 
+  const item = PASOS[step];
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#1e3a26', '#0e1a10', '#080d09']}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Marco */}
-      <View style={styles.marco} />
-
-      {/* Botón saltar */}
-      <TouchableOpacity
-        style={[styles.saltarBtn, { top: insets.top + 16 }]}
-        onPress={terminar}
-      >
-        <Text style={styles.saltarText}>Saltar</Text>
+    <AppBackground framed>
+      <TouchableOpacity style={[styles.skip, { top: insets.top + 18 }]} onPress={terminar}>
+        <Text style={styles.skipText}>Saltar</Text>
       </TouchableOpacity>
 
-      {/* Contenido animado */}
-      <Animated.View style={[styles.contenido, { transform: [{ translateX: slideX }] }]}>
-        <Text style={styles.icono}>{current.icono}</Text>
-        <Text style={styles.titulo}>
-          {current.titulo}{'\n'}
-          <Text style={styles.tituloAcc}>{current.tituloAcc}</Text>
-        </Text>
-        <Text style={styles.desc}>{current.desc}</Text>
+      <Animated.View style={[styles.content, { transform: [{ translateX: slide }] }]}>
+        <BrandTitle size={39} compact />
+        <View style={styles.illustration}>
+          {item.symbol === 'matches' ? (
+            <GrupoFosforos cantidad={5} size={112} guia={false} />
+          ) : (
+            <Text style={styles.symbol}>{item.symbol === 'cards' ? '🂡' : '♛'}</Text>
+          )}
+        </View>
+        <Text style={styles.title}>{item.title}</Text>
+        <Ornamento width={145} />
+        <Text style={styles.description}>{item.description}</Text>
       </Animated.View>
 
-      {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-
-        {/* Dots */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 22 }]}>
         <View style={styles.dots}>
-          {PASOS.map((_, i) => (
-            <View
-              key={i}
-              style={[styles.dot, i === paso && styles.dotActive]}
-            />
+          {PASOS.map((_, index) => (
+            <View key={index} style={[styles.dot, index === step && styles.dotActive]} />
           ))}
         </View>
-
-        {/* Botón siguiente / empezar */}
-        <TouchableOpacity
-          style={styles.btnSiguiente}
-          onPress={esUltimo ? terminar : () => irA(paso + 1)}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['#8B3A2A', '#6B2A1A']}
-            style={StyleSheet.absoluteFill}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          />
-          <Text style={styles.btnSiguienteText}>
-            {esUltimo ? '¡A jugar!' : 'Siguiente'}
-          </Text>
+        <TouchableOpacity style={styles.continueButton} onPress={siguiente}>
+          <Text style={styles.continueText}>{step === PASOS.length - 1 ? 'Empezar' : 'Continuar'}</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </AppBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
-  marco: {
-    position: 'absolute', inset: 14,
-    borderWidth: 1, borderColor: colors.bordeDorado,
-    borderRadius: 30,
+  skip: { position: 'absolute', right: 28, zIndex: 2 },
+  skipText: { fontFamily: fonts.sansMedium, color: colors.marfilMedio, fontSize: 12 },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 15,
   },
-
-  saltarBtn: {
-    position: 'absolute', right: 24, zIndex: 10,
+  illustration: {
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: 'rgba(2,10,7,0.34)',
+    borderWidth: 1,
+    borderColor: colors.bordeDoradoMedio,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
   },
-  saltarText: {
-    fontFamily: fonts.sansMedium, fontSize: fontSize.body,
-    color: colors.marfilTenue,
+  symbol: { fontSize: 88, color: colors.oro },
+  title: {
+    fontFamily: fonts.serif,
+    fontSize: 38,
+    lineHeight: 41,
+    color: colors.marfil,
+    textAlign: 'center',
   },
-
-  contenido: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: spacing.xxl, gap: spacing.lg,
+  description: {
+    maxWidth: 310,
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.marfilMedio,
+    textAlign: 'center',
   },
-  icono: { fontSize: 72 },
-  titulo: {
-    fontFamily:  fonts.serif,
-    fontSize:    fontSize.appTitle,
-    color:       colors.marfil,
-    textAlign:   'center',
-    lineHeight:  fontSize.appTitle * 1.2,
+  footer: { paddingHorizontal: spacing.xl, gap: 18 },
+  dots: { flexDirection: 'row', alignSelf: 'center', gap: 7 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.marfilTenue },
+  dotActive: { width: 24, backgroundColor: colors.oro },
+  continueButton: {
+    height: 56,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(13,55,32,0.9)',
+    borderWidth: 1,
+    borderColor: colors.bordeDoradoFuerte,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tituloAcc: {
-    fontFamily: fonts.serifItalic,
-    color:      colors.oro,
-  },
-  desc: {
-    fontFamily:  fonts.sans,
-    fontSize:    fontSize.body,
-    color:       colors.marfilSuave,
-    textAlign:   'center',
-    lineHeight:  22,
-    maxWidth:    280,
-  },
-
-  footer: {
-    width: '100%', paddingHorizontal: spacing.xl,
-    gap: spacing.lg, alignItems: 'center',
-  },
-  dots: { flexDirection: 'row', gap: 6 },
-  dot: {
-    width: 6, height: 6, borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  dotActive: {
-    width: 18,
-    backgroundColor: colors.oro,
-  },
-
-  btnSiguiente: {
-    width: '100%', paddingVertical: 14,
-    borderRadius: radius.md, alignItems: 'center',
-    overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(139,58,42,0.5)',
-  },
-  btnSiguienteText: {
-    fontFamily:    fonts.serif,
-    fontSize:      fontSize.screenTitle,
-    color:         colors.marfil,
-    letterSpacing: 0.5,
-  },
+  continueText: { fontFamily: fonts.serif, fontSize: 23, color: colors.marfil },
 });

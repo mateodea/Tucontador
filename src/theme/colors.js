@@ -2,20 +2,23 @@
 
 export const colors = {
   // Fondos principales
-  fondoPrincipal:       '#1C2B1F',
-  fondoProfundo:        '#0E1510',
-  fondoNegro:           '#060d07',
-  fondoAzul:            '#152438',
+  fondoPrincipal:       '#14351F',
+  fondoProfundo:        '#071A10',
+  fondoNegro:           '#030A07',
+  fondoAzul:            '#081827',
   fondoRojo:            '#1A0A0A',
-  fondoPanel1:          '#180808',
-  fondoPanel2:          '#080c18',
-  fondoCard:            'rgba(0,0,0,0.22)',
+  fondoPanel1:          '#35100E',
+  fondoPanel2:          '#0B2637',
+  fondoCard:            'rgba(2,10,7,0.48)',
+  pano:                 '#0B3A23',
+  panoClaro:            '#15512F',
+  tinta:                '#06110C',
 
   // Dorados — el alma de la app
-  doradoAntiguo:        '#B8962E',
-  oro:                  '#D4A843',
-  oroBrillo:            '#FFE060',
-  oroTenue:             'rgba(184,150,46,0.15)',
+  doradoAntiguo:        '#B88A36',
+  oro:                  '#D6AF5B',
+  oroBrillo:            '#F4D995',
+  oroTenue:             'rgba(214,175,91,0.14)',
 
   // Texto
   marfil:               '#F2EDD7',
@@ -43,9 +46,9 @@ export const colors = {
   terracota:            '#8B3A2A',
 
   // Bordes
-  bordeDorado:          'rgba(184,150,46,0.2)',
-  bordeDoradoMedio:     'rgba(184,150,46,0.35)',
-  bordeDoradoFuerte:    'rgba(184,150,46,0.55)',
+  bordeDorado:          'rgba(214,175,91,0.22)',
+  bordeDoradoMedio:     'rgba(214,175,91,0.42)',
+  bordeDoradoFuerte:    'rgba(214,175,91,0.72)',
   bordeSuave:           'rgba(255,255,255,0.07)',
   bordeMedio:           'rgba(255,255,255,0.12)',
 

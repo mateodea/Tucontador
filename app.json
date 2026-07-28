@@ -9,16 +9,16 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0E1510"
+      "backgroundColor": "#071A10"
     },
     "androidNavigationBar": {
-      "backgroundColor": "#0E1510",
+      "backgroundColor": "#071A10",
       "barStyle": "light-content"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0E1510"
+        "backgroundColor": "#071A10"
       },
       "package": "com.tucontador.app",
       "versionCode": 1
